@@ -8,15 +8,22 @@
     "modelVersion": "LGBM v1.0",
     "series": [
       { "label": "Sep 1", "actual": 58650, "forecast": null },
-      { "label": "Sep 5", "actual": 61200, "forecast": null },
-      { "label": "Sep 10", "actual": 63000, "forecast": 63000 },
-      { "label": "Sep 15", "actual": null, "forecast": 63800 },
-      { "label": "Sep 20", "actual": null, "forecast": 64200.5 }
+      { "label": "Sep 5", "actual": 60200, "forecast": null },
+      { "label": "Sep 10", "actual": 61800, "forecast": null },
+      { "label": "Sep 15", "actual": 63000, "forecast": 63000 },
+      { "label": "Sep 20", "actual": null, "forecast": 63800 },
+      { "label": "Sep 25", "actual": null, "forecast": 64200.5 }
     ],
     "forecastRows": [
-      { "day": 1, "date": "Sep 11, 2026", "price": 63150.00, "change": 0.24, "confidence": 95 },
-      { "day": 2, "date": "Sep 12, 2026", "price": 63400.20, "change": 0.40, "confidence": 94 },
-      { "day": 30, "date": "Oct 10, 2026", "price": 64200.50, "change": 1.91, "confidence": 72 }
+      { "day": 1, "date": "Sep 16, 2026", "price": 63150.00, "change": 0.24, "confidence": 96 },
+      { "day": 2, "date": "Sep 17, 2026", "price": 63400.20, "change": 0.40, "confidence": 94 },
+      { "day": 3, "date": "Sep 18, 2026", "price": 63700.00, "change": 0.47, "confidence": 92 },
+      { "day": 30, "date": "Oct 15, 2026", "price": 64200.50, "change": 1.91, "confidence": 72 }
+    ],
+    "historicalLogs": [
+      { "date": "2026-09-15", "open": 62100.00, "high": 63400.00, "low": 61800.00, "close": 63000.00, "volume": "28.4B" },
+      { "date": "2026-09-14", "open": 61500.00, "high": 62300.00, "low": 61000.00, "close": 62100.00, "volume": "25.1B" },
+      { "date": "2026-09-13", "open": 60800.00, "high": 61800.00, "low": 60200.00, "close": 61500.00, "volume": "22.9B" }
     ]
   },
   "ETH": {
@@ -28,15 +35,20 @@
     "modelVersion": "LGBM v1.0",
     "series": [
       { "label": "Sep 1", "actual": 3200, "forecast": null },
-      { "label": "Sep 5", "actual": 3380, "forecast": null },
-      { "label": "Sep 10", "actual": 3450, "forecast": 3450 },
-      { "label": "Sep 15", "actual": null, "forecast": 3540 },
-      { "label": "Sep 20", "actual": null, "forecast": 3620 }
+      { "label": "Sep 5", "actual": 3320, "forecast": null },
+      { "label": "Sep 10", "actual": 3400, "forecast": null },
+      { "label": "Sep 15", "actual": 3450, "forecast": 3450 },
+      { "label": "Sep 20", "actual": null, "forecast": 3540 },
+      { "label": "Sep 25", "actual": null, "forecast": 3620 }
     ],
     "forecastRows": [
-      { "day": 1, "date": "Sep 11, 2026", "price": 3470.00, "change": 0.58, "confidence": 96 },
-      { "day": 2, "date": "Sep 12, 2026", "price": 3495.50, "change": 0.73, "confidence": 93 },
-      { "day": 30, "date": "Oct 10, 2026", "price": 3620.00, "change": 4.92, "confidence": 70 }
+      { "day": 1, "date": "Sep 16, 2026", "price": 3470.00, "change": 0.58, "confidence": 95 },
+      { "day": 2, "date": "Sep 17, 2026", "price": 3495.50, "change": 0.73, "confidence": 93 },
+      { "day": 30, "date": "Oct 15, 2026", "price": 3620.00, "change": 4.92, "confidence": 70 }
+    ],
+    "historicalLogs": [
+      { "date": "2026-09-15", "open": 3380.00, "high": 3480.00, "low": 3350.00, "close": 3450.00, "volume": "14.2B" },
+      { "date": "2026-09-14", "open": 3300.00, "high": 3400.00, "low": 3280.00, "close": 3380.00, "volume": "12.8B" }
     ]
   },
   "ADA": {
@@ -48,15 +60,20 @@
     "modelVersion": "LGBM v1.0",
     "series": [
       { "label": "Sep 1", "actual": 0.39, "forecast": null },
-      { "label": "Sep 5", "actual": 0.42, "forecast": null },
-      { "label": "Sep 10", "actual": 0.45, "forecast": 0.45 },
-      { "label": "Sep 15", "actual": null, "forecast": 0.48 },
-      { "label": "Sep 20", "actual": null, "forecast": 0.52 }
+      { "label": "Sep 5", "actual": 0.41, "forecast": null },
+      { "label": "Sep 10", "actual": 0.43, "forecast": null },
+      { "label": "Sep 15", "actual": 0.45, "forecast": 0.45 },
+      { "label": "Sep 20", "actual": null, "forecast": 0.48 },
+      { "label": "Sep 25", "actual": null, "forecast": 0.52 }
     ],
     "forecastRows": [
-      { "day": 1, "date": "Sep 11, 2026", "price": 0.455, "change": 1.11, "confidence": 91 },
-      { "day": 2, "date": "Sep 12, 2026", "price": 0.462, "change": 1.53, "confidence": 89 },
-      { "day": 30, "date": "Oct 10, 2026", "price": 0.520, "change": 15.55, "confidence": 65 }
+      { "day": 1, "date": "Sep 16, 2026", "price": 0.455, "change": 1.11, "confidence": 92 },
+      { "day": 2, "date": "Sep 17, 2026", "price": 0.462, "change": 1.53, "confidence": 88 },
+      { "day": 30, "date": "Oct 15, 2026", "price": 0.520, "change": 15.55, "confidence": 65 }
+    ],
+    "historicalLogs": [
+      { "date": "2026-09-15", "open": 0.43, "high": 0.46, "low": 0.42, "close": 0.45, "volume": "1.1B" },
+      { "date": "2026-09-14", "open": 0.41, "high": 0.44, "low": 0.40, "close": 0.43, "volume": "0.9B" }
     ]
   }
 }
