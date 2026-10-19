@@ -4,7 +4,7 @@ import cryptoData from "./data/cryptoData.json";
 
 import Sidebar from "./components/Sidebar";
 import DashboardPage from "./pages/DashboardPage";
-import HistoricalPage from "./pages/HistoricalPage";
+import HistoricalPage from "./pages/HistoricalPages";
 import BacktestPage from "./pages/BacktestPage";
 import PredictionPage from "./pages/PredictionPage";
 import AdminPage from "./pages/AdminPage";
