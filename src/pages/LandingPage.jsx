@@ -99,7 +99,7 @@ export default function LandingPage({ assetData, onNavigate }) {
         <div>
           <div className="eyebrow page-eyebrow"><Sparkles size={14} /> YOUR CRYPTO WORKSPACE</div>
           <h2>Market overview</h2>
-          <p className="page-lede">ภาพรวมตลาดคริปโต พร้อมข้อมูลจากโมเดลพยากรณ์ในโปรเจกต์ของคุณ</p>
+          <p className="page-lede">Your cryptocurrency market overview, paired with forecasts from the project's demonstration model.</p>
         </div>
         <div className="market-status">
           <span className={isLive ? "live-indicator is-live" : "live-indicator"} />
@@ -115,7 +115,7 @@ export default function LandingPage({ assetData, onNavigate }) {
 
       <section className="market-section">
         <div className="section-heading">
-          <div><h3>Market watch</h3><p>{isLive ? "ราคาตลาด USD และการเปลี่ยนแปลง 24 ชั่วโมง" : "ข้อมูลสำรองจากชุดข้อมูลเดิมของโปรเจกต์ · ไม่ใช่ราคาสด"}</p></div>
+          <div><h3>Market watch</h3><p>{isLive ? "USD market prices and 24-hour changes." : "Stored project values · not live market prices."}</p></div>
           <span className="section-tag"><Clock3 size={13} /> {isLive ? "LIVE SNAPSHOT" : "DATASET"}</span>
         </div>
         <div className="market-card-grid">
@@ -143,7 +143,7 @@ export default function LandingPage({ assetData, onNavigate }) {
             );
           })}
         </div>
-        {marketError && <p className="market-footnote">ดึงราคาตลาดสดไม่ได้ในขณะนี้ จึงแสดงค่าจากชุดข้อมูลตัวอย่างของโปรเจกต์แทน</p>}
+        {marketError && <p className="market-footnote">Live market data is currently unavailable. Showing stored project sample values instead.</p>}
       </section>
 
       <section className="overview-main-grid">
@@ -171,7 +171,7 @@ export default function LandingPage({ assetData, onNavigate }) {
               </AreaChart>
             </ResponsiveContainer>
           </div>
-          <p className="chart-note">กราฟนี้ใช้ข้อมูลตัวอย่างที่บันทึกอยู่ในโปรเจกต์ ไม่ใช่การดึงราคาเก่าแบบเรียลไทม์</p>
+          <p className="chart-note">This chart uses historical and forecast samples stored in the project, not a live historical price feed.</p>
         </article>
 
         <article className="panel forecast-panel">
@@ -185,16 +185,16 @@ export default function LandingPage({ assetData, onNavigate }) {
           <div className="model-metric"><span>Model</span><strong>{assetData.modelVersion}</strong></div>
           <div className="model-metric"><span>Stored MAPE value</span><strong>{assetData.mape}%</strong></div>
           <button className="secondary-action" type="button" onClick={() => onNavigate("prediction")}>Explore prediction <ArrowRight size={16} /></button>
-          <p className="forecast-disclaimer">ค่าจากโมเดลเพื่อการศึกษา ไม่ใช่คำแนะนำให้ซื้อหรือขาย</p>
+          <p className="forecast-disclaimer">Model output is for educational use only and is not a buy or sell recommendation.</p>
         </article>
       </section>
 
       <section className="quick-links-section">
-        <div className="section-heading"><div><h3>Continue exploring</h3><p>ไปยังส่วนวิเคราะห์อื่นของโปรเจกต์</p></div></div>
+        <div className="section-heading"><div><h3>Continue exploring</h3><p>Explore other sections of the project.</p></div></div>
         <div className="quick-links-grid">
-          <button className="quick-link-card" type="button" onClick={() => onNavigate("dashboard")}><span className="quick-link-icon"><BarChart3 size={18} /></span><span><strong>Model dashboard</strong><small>เปรียบเทียบราคาจริงและราคาพยากรณ์</small></span><ArrowRight size={17} /></button>
-          <button className="quick-link-card" type="button" onClick={() => onNavigate("historical")}><span className="quick-link-icon"><Clock3 size={18} /></span><span><strong>Historical data</strong><small>ตรวจสอบข้อมูลราคาในอดีต</small></span><ArrowRight size={17} /></button>
-          <button className="quick-link-card" type="button" onClick={() => onNavigate("backtest")}><span className="quick-link-icon"><TrendingUp size={18} /></span><span><strong>Backtesting</strong><small>ดูการประเมินประสิทธิภาพของโมเดล</small></span><ArrowRight size={17} /></button>
+          <button className="quick-link-card" type="button" onClick={() => onNavigate("dashboard")}><span className="quick-link-icon"><BarChart3 size={18} /></span><span><strong>Model dashboard</strong><small>Compare stored historical values and model forecasts.</small></span><ArrowRight size={17} /></button>
+          <button className="quick-link-card" type="button" onClick={() => onNavigate("historical")}><span className="quick-link-icon"><Clock3 size={18} /></span><span><strong>Historical data</strong><small>Review stored historical price records.</small></span><ArrowRight size={17} /></button>
+          <button className="quick-link-card" type="button" onClick={() => onNavigate("backtest")}><span className="quick-link-icon"><TrendingUp size={18} /></span><span><strong>Backtesting</strong><small>Review the sample model evaluation summary.</small></span><ArrowRight size={17} /></button>
         </div>
       </section>
     </div>

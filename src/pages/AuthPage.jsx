@@ -30,7 +30,13 @@ const errorMessages = {
   "auth/network-request-failed":
     "Network error. Check your connection and try again.",
   "auth/operation-not-allowed":
-    "Email/Password sign-in is not enabled in Firebase Console."
+    "Email and password authentication is not enabled in Firebase Console.",
+  "auth/unauthorized-domain":
+    "This website domain is not authorized in Firebase Authentication settings.",
+  "auth/invalid-api-key":
+    "The Firebase API key is invalid. Check your local environment configuration.",
+  "auth/app-not-authorized":
+    "This application is not authorized to use Firebase Authentication."
 };
 
 export default function AuthPage() {
@@ -60,10 +66,15 @@ export default function AuthPage() {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+    if (busy) return;
     setError("");
     setNotice("");
 
     const cleanEmail = email.trim();
+    if (!cleanEmail) {
+      setError("Please enter your email address.");
+      return;
+    }
     if (isSignUp) {
       if (!username.trim()) {
         setError("Please enter a username.");
@@ -84,7 +95,7 @@ export default function AuthPage() {
       if (isReset) {
         await sendPasswordResetEmail(auth, cleanEmail);
         setNotice(
-          "Password reset link sent to your email. Please check your inbox."
+          "If an account exists for this email address, a password reset link will be sent. Please check your inbox and spam folder."
         );
       } else if (isSignUp) {
         const credential = await createUserWithEmailAndPassword(
@@ -287,7 +298,7 @@ export default function AuthPage() {
                       color: "#6b7280"
                     }}
                     onClick={() => setShowPassword(!showPassword)}
-                    tabIndex={-1}
+
                     aria-label={showPassword ? "Hide password" : "Show password"}
                   >
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -322,7 +333,7 @@ export default function AuthPage() {
                       color: "#6b7280"
                     }}
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    tabIndex={-1}
+
                     aria-label={
                       showConfirmPassword
                         ? "Hide confirm password"

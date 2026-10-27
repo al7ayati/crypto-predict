@@ -1,7 +1,7 @@
 import React from "react";
 import {
   LayoutDashboard, History, FlaskConical, TrendingUp, ShieldCheck,
-  Hexagon, Radio, PanelsTopLeft
+  Hexagon, PanelsTopLeft
 } from "lucide-react";
 
 const NAV_ITEMS = [
@@ -44,7 +44,7 @@ export default function Sidebar({ activeNav, setActiveNav }) {
       <div className="sidebar-project-card">
         <span className="sidebar-project-label">PROJECT</span>
         <strong>Crypto Predict</strong>
-        <span>Computer Science · 2569</span>
+        <span>Computer Science project</span>
       </div>
     </aside>
   );
