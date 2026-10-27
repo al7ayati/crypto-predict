@@ -19,7 +19,7 @@ export default function PredictionPage({ assetData }) {
             {forecastRows.map((row) => (
               <tr key={row.day}>
                 <td>{row.date || "Day " + row.day}</td>
-                <td><strong>\${row.price.toLocaleString()}</strong></td>
+                <td><strong>{"$" + row.price.toLocaleString()}</strong></td>
                 <td style={{ color: row.change >= 0 ? "#0FA968" : "#E14C4C", fontWeight: 700 }}>{row.change >= 0 ? "+" : ""}{row.change}%</td>
                 <td style={{ textAlign: "right" }}>{typeof row.confidence === "number" ? row.confidence + "%" : "—"}</td>
               </tr>
