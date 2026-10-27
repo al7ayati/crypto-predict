@@ -13,8 +13,10 @@ export default function HistoricalPage({ assetData }) {
     const link = document.createElement("a");
     link.href = url;
     link.download = symbol.toLowerCase() + "-historical-sample.csv";
+    document.body.appendChild(link);
     link.click();
-    URL.revokeObjectURL(url);
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
   return (
