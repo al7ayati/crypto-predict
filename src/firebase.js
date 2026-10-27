@@ -11,7 +11,11 @@ const firebaseConfig = {
 };
 
 const missingConfigKeys = Object.entries(firebaseConfig)
-  .filter(([, value]) => typeof value !== "string" || value.trim() === "")
+  .filter(([, value]) =>
+    typeof value !== "string" ||
+    value.trim() === "" ||
+    value.startsWith("replace_with_")
+  )
   .map(([key]) => key);
 
 if (missingConfigKeys.length > 0) {
