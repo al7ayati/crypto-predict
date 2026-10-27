@@ -1,116 +1,80 @@
 import React from "react";
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Gauge, Target, Percent } from "lucide-react";
 
 const COLORS = {
-  panel: "#FFFFFF",
-  ink: "#0B1526",
   slate: "#8592A6",
   hairline: "#E6ECF7",
   tint: "#EFF4FF",
   primary: "#155EEF",
   primaryDeep: "#0B3B8C",
   positive: "#0FA968",
-  negative: "#E14C4C",
+  negative: "#E14C4C"
 };
+
+const money = (value) => "$" + Number(value).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export default function DashboardPage({ assetData }) {
   const { symbol, currentPrice, forecastPrice, mape, modelVersion, series, forecastRows } = assetData;
-  const upside = (((forecastPrice - currentPrice) / currentPrice) * 100).toFixed(2);
+  const upside = ((forecastPrice - currentPrice) / currentPrice) * 100;
 
   return (
-    <div>
-      {/* Metric Summary Cards */}
-      <div style={{ display: "flex", gap: 18, marginBottom: 22 }}>
-        <div style={cardStyle}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <Gauge size={20} color={COLORS.primary} />
-            <span style={labelStyle}>CURRENT PRICE (USD)</span>
-          </div>
-          <div style={valStyle}>${currentPrice.toLocaleString("en-US", { minimumFractionDigits: 2 })}</div>
-          <div style={subStyle}>{symbol} · Live market close</div>
+    <div className="dashboard-contents">
+      <div className="metrics-grid">
+        <div className="metric-card">
+          <div className="metric-label-row"><Gauge size={19} color={COLORS.primary} /><span className="metric-label">DATASET PRICE (USD)</span></div>
+          <div className="metric-value">{money(currentPrice)}</div>
+          <div className="metric-subtitle">{symbol} · Stored project data, not live</div>
         </div>
-
-        <div style={cardStyle}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <Target size={20} color={COLORS.primaryDeep} />
-            <span style={labelStyle}>30-DAY FORECAST PRICE</span>
-          </div>
-          <div style={valStyle}>
-            ${forecastPrice.toLocaleString("en-US", { minimumFractionDigits: 2 })}
-            <span style={{ fontSize: 13, color: Number(upside) >= 0 ? COLORS.positive : COLORS.negative, marginLeft: 8 }}>
-              ({upside}%)
-            </span>
-          </div>
-          <div style={subStyle}>Projected trend analysis</div>
+        <div className="metric-card">
+          <div className="metric-label-row"><Target size={19} color={COLORS.primaryDeep} /><span className="metric-label">30-DAY MODEL FORECAST</span></div>
+          <div className="metric-value">{money(forecastPrice)} <span style={{ color: upside >= 0 ? COLORS.positive : COLORS.negative, fontSize: 12, whiteSpace: "nowrap" }}>({upside >= 0 ? "+" : ""}{upside.toFixed(2)}%)</span></div>
+          <div className="metric-subtitle">Projected value from stored model sample</div>
         </div>
-
-        <div style={cardStyle}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <Percent size={20} color={COLORS.slate} />
-            <span style={labelStyle}>MODEL MAPE ERROR RATE</span>
-          </div>
-          <div style={valStyle}>{mape}%</div>
-          <div style={subStyle}>{modelVersion} · Validation set</div>
+        <div className="metric-card">
+          <div className="metric-label-row"><Percent size={19} color={COLORS.slate} /><span className="metric-label">STORED MAPE VALUE</span></div>
+          <div className="metric-value">{mape}%</div>
+          <div className="metric-subtitle">{modelVersion} · Verify against the evaluation report</div>
         </div>
       </div>
 
-      {/* Main Dual Chart & Forecast Table Grid */}
-      <div style={{ display: "grid", gridTemplateColumns: "1.55fr 1fr", gap: 20 }}>
-        {/* Chart Panel */}
-        <div style={{ ...panelBoxStyle, padding: 22 }}>
-          <div style={{ fontWeight: 600, fontSize: 16, marginBottom: 4 }}>Historical & Forecasted Price</div>
-          <div style={{ fontSize: 12, color: COLORS.slate, marginBottom: 16 }}>
-            Solid line — Actual close · Dashed line — LightGBM Prediction
-          </div>
-          <div style={{ height: 320 }}>
+      <div className="dashboard-grid">
+        <section className="dashboard-panel">
+          <h3>Historical & forecast sample</h3>
+          <p className="dashboard-panel-subtitle">Solid line — stored historical values · Dashed line — stored model forecast</p>
+          <div className="dashboard-chart">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={series}>
-                <CartesianGrid vertical={false} stroke={COLORS.hairline} />
-                <XAxis dataKey="label" tick={{ fontSize: 11, fill: COLORS.slate }} />
-                <YAxis tick={{ fontSize: 11, fill: COLORS.slate }} domain={["auto", "auto"]} />
-                <Tooltip />
-                <Area type="monotone" dataKey="actual" stroke={COLORS.primaryDeep} fill={COLORS.tint} strokeWidth={2.4} />
-                <Area type="monotone" dataKey="forecast" stroke={COLORS.primary} strokeDasharray="5 5" fill="none" strokeWidth={2.4} />
+              <AreaChart data={series} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                <CartesianGrid vertical={false} stroke={COLORS.hairline} strokeDasharray="4 5" />
+                <XAxis dataKey="label" tick={{ fontSize: 10, fill: COLORS.slate }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 10, fill: COLORS.slate }} domain={["auto", "auto"]} axisLine={false} tickLine={false} width={57} />
+                <Tooltip formatter={(value) => money(value)} />
+                <Area type="monotone" dataKey="actual" name="Historical sample" stroke={COLORS.primaryDeep} fill={COLORS.tint} strokeWidth={2.3} connectNulls={false} />
+                <Area type="monotone" dataKey="forecast" name="Forecast sample" stroke={COLORS.primary} strokeDasharray="5 5" fill="none" strokeWidth={2.3} connectNulls={false} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
-        </div>
+        </section>
 
-        {/* 30-Day Forecast Data Table */}
-        <div style={{ ...panelBoxStyle, padding: "22px 18px" }}>
-          <div style={{ fontWeight: 600, fontSize: 16, marginBottom: 4 }}>30-Day Forecast Table</div>
-          <div style={{ fontSize: 12, color: COLORS.slate, marginBottom: 14 }}>Day-by-day projected price close</div>
-          <div style={{ maxHeight: 310, overflowY: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
-              <thead>
-                <tr style={{ borderBottom: `1px solid ${COLORS.hairline}`, color: COLORS.slate, textAlign: "left" }}>
-                  <th style={{ paddingBottom: 8 }}>Day</th>
-                  <th style={{ paddingBottom: 8 }}>Predicted</th>
-                  <th style={{ paddingBottom: 8, textAlign: "right" }}>Δ%</th>
-                </tr>
-              </thead>
+        <section className="dashboard-panel">
+          <h3>Forecast data table</h3>
+          <p className="dashboard-panel-subtitle">Stored prediction rows for {symbol}; dates are sample data.</p>
+          <div className="forecast-table-scroll">
+            <table className="data-table">
+              <thead><tr><th>Day</th><th>Predicted</th><th style={{ textAlign: "right" }}>Change</th></tr></thead>
               <tbody>
                 {forecastRows.map((row) => (
-                  <tr key={row.day} style={{ borderBottom: `1px solid ${COLORS.hairline}` }}>
-                    <td style={{ padding: "10px 0", color: COLORS.slate }}>Day {row.day}</td>
-                    <td style={{ padding: "10px 0", fontWeight: 600 }}>${row.price.toLocaleString("en-US")}</td>
-                    <td style={{ padding: "10px 0", textAlign: "right", color: row.change >= 0 ? COLORS.positive : COLORS.negative, fontWeight: 600 }}>
-                      +{row.change}%
-                    </td>
+                  <tr key={row.day}>
+                    <td>Day {row.day}</td>
+                    <td><strong>{money(row.price)}</strong></td>
+                    <td style={{ textAlign: "right", color: row.change >= 0 ? COLORS.positive : COLORS.negative, fontWeight: 700 }}>{row.change >= 0 ? "+" : ""}{row.change}%</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        </div>
+        </section>
       </div>
     </div>
   );
 }
-
-const cardStyle = { flex: 1, background: COLORS.panel, borderRadius: 20, padding: "20px 22px", border: `1px solid ${COLORS.hairline}`, boxShadow: "0 10px 25px -10px rgba(15,32,74,0.08)" };
-const labelStyle = { fontSize: 11.5, letterSpacing: "0.04em", color: COLORS.slate, fontWeight: 600 };
-const valStyle = { fontSize: 25, fontWeight: 700, color: COLORS.ink, marginTop: 10 };
-const subStyle = { fontSize: 12, color: COLORS.slate, marginTop: 4 };
-const panelBoxStyle = { background: COLORS.panel, borderRadius: 22, border: `1px solid ${COLORS.hairline}`, boxShadow: "0 10px 25px -10px rgba(15,32,74,0.08)" };
