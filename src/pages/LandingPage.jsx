@@ -59,12 +59,13 @@ export default function LandingPage({ assetData, onNavigate }) {
       );
       if (!response.ok) throw new Error("Market API unavailable");
       const result = await response.json();
-      const mapped = COINS.map((coin) => {
-        const item = result.find((entry) => entry.id === coin.id);
-        return item ? { ...coin, ...item } : fallbackMarket.find((fallback) => fallback.symbol === coin.symbol);
-      });
+      const liveRows = COINS.map((coin) => result.find((entry) => entry.id === coin.id));
+      if (liveRows.some((item) => !item || typeof item.current_price !== "number")) {
+        throw new Error("Incomplete market response");
+      }
+      const mapped = COINS.map((coin, index) => ({ ...coin, ...liveRows[index] }));
       setMarket(mapped);
-      setIsLive(mapped.some((coin) => typeof coin.price_change_percentage_24h === "number"));
+      setIsLive(true);
       setLastUpdated(new Date());
     } catch (error) {
       if (error.name !== "AbortError") {
