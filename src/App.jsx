@@ -1,7 +1,11 @@
-import React, { useState } from "react";
-import { ChevronDown, Search, CircleUserRound } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { onAuthStateChanged, signOut } from "firebase/auth";
+import { ChevronDown, LogOut, UserRound } from "lucide-react";
+import { auth } from "./firebase";
 import cryptoData from "./data/cryptoData.json";
 
+import AuthPage from "./pages/AuthPage";
+import LandingPage from "./pages/LandingPage";
 import Sidebar from "./components/Sidebar";
 import DashboardPage from "./pages/DashboardPage";
 import HistoricalPage from "./pages/HistoricalPages";
@@ -10,21 +14,26 @@ import PredictionPage from "./pages/PredictionPage";
 import AdminPage from "./pages/AdminPage";
 
 const ASSETS = [
-  { symbol: "BTC", name: "BITCOIN" },
-  { symbol: "ETH", name: "ETHEREUM" },
-  { symbol: "ADA", name: "CARDANO" },
+  { symbol: "BTC", name: "Bitcoin" },
+  { symbol: "ETH", name: "Ethereum" },
+  { symbol: "ADA", name: "Cardano" }
 ];
 
 export default function App() {
+  const [user, setUser] = useState(undefined);
   const [selectedSymbol, setSelectedSymbol] = useState("BTC");
+  const [activeNav, setActiveNav] = useState("overview");
   const [assetOpen, setAssetOpen] = useState(false);
-  const [activeNav, setActiveNav] = useState("dashboard");
+  const [signOutBusy, setSignOutBusy] = useState(false);
+
+  useEffect(() => onAuthStateChanged(auth, (currentUser) => setUser(currentUser)), []);
 
   const currentAssetData = cryptoData[selectedSymbol];
 
-  // ฟังก์ชันสลับแสดงผลหน้าตาม Nav Item ที่คลิก
   const renderActivePage = () => {
     switch (activeNav) {
+      case "overview":
+        return <LandingPage assetData={currentAssetData} onNavigate={setActiveNav} />;
       case "dashboard":
         return <DashboardPage assetData={currentAssetData} />;
       case "historical":
@@ -36,71 +45,60 @@ export default function App() {
       case "admin":
         return <AdminPage />;
       default:
-        return <DashboardPage assetData={currentAssetData} />;
+        return <LandingPage assetData={currentAssetData} onNavigate={setActiveNav} />;
     }
   };
 
+  if (user === undefined) {
+    return <div className="app-loading"><div className="loading-mark" /><span>กำลังเตรียมพื้นที่ Crypto Predict...</span></div>;
+  }
+
+  if (!user) return <AuthPage />;
+
+  const username = user.displayName || user.email?.split("@")[0] || "User";
+
   return (
-    <div style={{ display: "flex", minHeight: "100vh", background: "#FBFCFF", fontFamily: "Inter, sans-serif" }}>
-      {/* ไซด์บาร์หลัก */}
+    <div className="app-layout">
       <Sidebar activeNav={activeNav} setActiveNav={setActiveNav} />
-
-      {/* พื้นที่แสดงผลเนื้อหาหลัก */}
-      <main style={{ flex: 1, minWidth: 0, padding: "26px 36px 48px" }}>
-        {/* Header Bar */}
-        <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 28 }}>
-          <div>
-            <div style={{ fontSize: 12.5, color: "#8592A6", fontWeight: 500 }}>Cryptocurrency Analytics</div>
-            <h1 style={{ fontSize: 24, fontWeight: 600, margin: "2px 0 0", color: "#0B1526" }}>
-              {selectedSymbol} - {activeNav.toUpperCase()}
-            </h1>
+      <main className="app-main">
+        <header className="topbar">
+          <div className="topbar-title">
+            <span className="topbar-kicker">CRYPTOCURRENCY ANALYTICS</span>
+            <h1>{activeNav === "overview" ? "Market overview" : activeNav === "dashboard" ? "Model dashboard" : activeNav === "historical" ? "Historical data" : activeNav === "backtest" ? "Backtesting & evaluation" : activeNav === "prediction" ? "Price prediction" : "Admin management"}</h1>
           </div>
-
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            {/* Dropdown สลับเหรียญ */}
-            <div style={{ position: "relative" }}>
-              <button
-                onClick={() => setAssetOpen(!assetOpen)}
-                style={{
-                  display: "flex", alignItems: "center", gap: 10, background: "#FFFFFF",
-                  border: "1px solid #E6ECF7", borderRadius: 13, padding: "9px 14px", cursor: "pointer"
-                }}
-              >
-                <span style={{ fontWeight: 600, fontSize: 13.5 }}>{selectedSymbol} ({currentAssetData.name})</span>
-                <ChevronDown size={15} color="#8592A6" />
-              </button>
-
-              {assetOpen && (
-                <div style={{
-                  position: "absolute", top: "110%", right: 0, minWidth: 190, background: "#FFFFFF",
-                  border: "1px solid #E6ECF7", borderRadius: 14, boxShadow: "0 10px 25px rgba(0,0,0,0.1)", padding: 6, zIndex: 10
-                }}>
-                  {ASSETS.map((a) => (
-                    <div
-                      key={a.symbol}
-                      onClick={() => { setSelectedSymbol(a.symbol); setAssetOpen(false); }}
-                      style={{
-                        padding: "9px 12px", borderRadius: 8, cursor: "pointer", fontSize: 13,
-                        display: "flex", justifyContent: "space-between",
-                        background: a.symbol === selectedSymbol ? "#EFF4FF" : "transparent"
-                      }}
-                    >
-                      <b>{a.symbol}</b>
-                      <span style={{ color: "#8592A6" }}>{a.name}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
+          <div className="topbar-actions">
+            <label className="asset-picker-label">
+              <span className="sr-only">Select cryptocurrency</span>
+              <select value={selectedSymbol} onChange={(event) => setSelectedSymbol(event.target.value)} aria-label="Select cryptocurrency">
+                {ASSETS.map((asset) => <option value={asset.symbol} key={asset.symbol}>{asset.symbol} · {asset.name}</option>)}
+              </select>
+              <ChevronDown size={15} aria-hidden="true" />
+            </label>
+            <div className="user-chip">
+              <span className="user-avatar"><UserRound size={17} /></span>
+              <span className="user-name">{username}</span>
             </div>
-
-            <div style={{ width: 38, height: 38, borderRadius: 12, background: "#155EEF", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <CircleUserRound size={20} color="#fff" />
-            </div>
+            <button
+              className="sign-out-button"
+              type="button"
+              disabled={signOutBusy}
+              onClick={async () => {
+                setSignOutBusy(true);
+                try { await signOut(auth); } finally { setSignOutBusy(false); }
+              }}
+              aria-label="Sign out"
+              title="Sign out"
+            >
+              <LogOut size={17} />
+              <span>{signOutBusy ? "..." : "ออกจากระบบ"}</span>
+            </button>
           </div>
         </header>
-
-        {/* Dynamic Render Page Component */}
-        {renderActivePage()}
+        <div className="page-content" key={activeNav}>{renderActivePage()}</div>
+        <footer className="app-footer">
+          <span>Crypto Predict · Analytics workspace</span>
+          <span>ข้อมูลโมเดลมีไว้เพื่อการศึกษาเท่านั้น</span>
+        </footer>
       </main>
     </div>
   );
