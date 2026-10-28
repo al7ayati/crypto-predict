@@ -1,8 +1,8 @@
 # Crypto Predict
 
-Crypto Predict is a React and Vite cryptocurrency analytics demo. It includes Firebase email/password authentication, a market overview, stored historical samples, forecast visualizations, a backtesting summary, and CSV export.
+Crypto Predict is a React and Vite cryptocurrency analytics demo. It includes Firebase email/password and Google authentication, a live market dashboard, stored historical samples, forecast visualizations, a backtesting summary, and CSV export.
 
-> **Data and feature notice:** Live market quotes are requested from CoinGecko when the public endpoint is available. Historical series, forecast values, and MAPE values are stored project samples—not a live model pipeline or independently verified performance. The admin page is a placeholder until a secured backend and training service are connected.
+> **Data and feature notice:** The dashboard requests market prices and aggregate market statistics from CoinGecko and refreshes them every 60 seconds when the public API is available. If a request fails, it clearly falls back to sample data. Historical series, forecast values, AI signals, and backtest metrics are demonstration samples—not a live model pipeline or independently verified performance.
 
 ## Requirements
 
@@ -31,9 +31,10 @@ Vite reads `.env.local` from the repository root. Restart the development server
 
 1. Open the [Firebase Console](https://console.firebase.google.com/) and select `crypto-predict-app`, or update `.firebaserc` if using another project.
 2. Open **Build → Authentication → Sign-in method** and enable **Email/Password**.
-3. Under **Authentication → Settings → Authorized domains**, add the local and production hostnames that you use. Do not include a path or protocol.
-4. Confirm the environment values match the registered Firebase Web app.
-5. Start the app and test sign-up with an email address you can access, sign out, sign in again, and request a password reset. Check the inbox and spam folder for the password reset email.
+3. Enable **Google** as a sign-in provider if you want to use Google authentication.
+4. Under **Authentication → Settings → Authorized domains**, add the local and production hostnames that you use. Do not include a path or protocol.
+5. Confirm the environment values match the registered Firebase Web app.
+6. Start the app and test email sign-up with an email address you can access, sign out, sign in again, and request a password reset. Check the inbox and spam folder for the password reset email. Test Google sign-in from an authorized domain.
 
 The username is saved in the Firebase Authentication profile as `displayName`. Passwords are handled by Firebase Authentication and are not saved by this frontend to a custom database.
 
@@ -73,8 +74,8 @@ Run these commands from the repository root. Ensure `.env.local` is populated **
 
 ## Current feature boundaries
 
-- **Market overview:** attempts to fetch current BTC, ETH, and ADA quotes from the CoinGecko public API; if the request fails, it clearly labels the stored fallback values as sample data.
-- **Model dashboard, historical data, prediction, and backtesting:** use stored sample data for demonstration and inspection. Historical data can be exported to CSV.
-- **Admin management:** explicitly marked unavailable because there is no connected backend model-training endpoint or live audit-log database.
+- **Dashboard:** fetches live prices, 24-hour changes, volume, sparklines, and global market statistics for BTC, ETH, SOL, XRP, and ADA from the CoinGecko public API. The AI signals and sentiment remain labeled demonstration values.
+- **Historical data, predictions, and backtesting:** use stored sample data for demonstration and inspection. Historical data can be exported to CSV. These pages do not represent verified trading performance or a live prediction service.
+- **Settings and administration:** not included until there are real user settings or secured backend operations to manage.
 
 All forecasts are for educational purposes only and do not constitute financial advice.

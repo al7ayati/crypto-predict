@@ -1,23 +1,29 @@
 import React from "react";
 import {
-  LayoutDashboard, History, FlaskConical, TrendingUp, ShieldCheck,
-  Hexagon, PanelsTopLeft
+  LayoutDashboard, History, FlaskConical, TrendingUp, LogOut
 } from "lucide-react";
+import BrandMark from "./BrandMark";
 
 const NAV_ITEMS = [
-  { key: "overview", label: "MARKET OVERVIEW", icon: PanelsTopLeft },
-  { key: "dashboard", label: "MODEL DASHBOARD", icon: LayoutDashboard },
-  { key: "historical", label: "HISTORICAL DATA", icon: History },
-  { key: "backtest", label: "BACKTESTING", icon: FlaskConical },
-  { key: "prediction", label: "PRICE PREDICTION", icon: TrendingUp },
-  { key: "admin", label: "ADMIN MANAGEMENT", icon: ShieldCheck }
+  { key: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { key: "prediction", label: "Predictions", icon: TrendingUp },
+  { key: "backtest", label: "Backtest", icon: FlaskConical },
+  { key: "historical", label: "Historical Data", icon: History }
 ];
 
-export default function Sidebar({ activeNav, setActiveNav }) {
+export default function Sidebar({ activeNav, setActiveNav, user, onSignOut, signOutBusy, signOutError }) {
+  const displayName = user?.displayName || user?.email?.split("@")[0] || "User";
+  const initials = displayName
+    .split(/\s+/)
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+
   return (
     <aside className="sidebar">
       <div className="sidebar-brand">
-        <span className="sidebar-brand-mark"><Hexagon size={20} strokeWidth={2.4} /></span>
+        <BrandMark className="sidebar-brand-mark" iconSize={20} />
         <span className="sidebar-brand-text">CRYPTO<span>PREDICT</span></span>
       </div>
       <div className="sidebar-section-label">WORKSPACE</div>
@@ -41,10 +47,30 @@ export default function Sidebar({ activeNav, setActiveNav }) {
       </nav>
       <div className="sidebar-spacer" />
       <div className="sidebar-status"><span className="status-dot" /><span>Analytics workspace</span></div>
-      <div className="sidebar-project-card">
-        <span className="sidebar-project-label">PROJECT</span>
-        <strong>Crypto Predict</strong>
-        <span>Computer Science project</span>
+      <div className="mt-2 border-t border-white/10 pt-4">
+        <div className="flex min-w-0 items-center gap-3 px-1">
+          {user?.photoURL ? (
+            <img className="h-10 w-10 rounded-xl object-cover" src={user.photoURL} alt="" />
+          ) : (
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-400/20 text-xs font-bold text-blue-100">
+              {initials}
+            </span>
+          )}
+          <div className="min-w-0 flex-1">
+            <strong className="block truncate text-xs font-semibold text-white">{displayName}</strong>
+            <span className="block truncate text-[10px] text-blue-100/60">{user?.email || "Signed-in account"}</span>
+          </div>
+        </div>
+        {signOutError && <p className="mt-3 text-xs leading-5 text-rose-200" role="alert">{signOutError}</p>}
+        <button
+          type="button"
+          className="mt-4 flex min-h-10 w-full items-center gap-3 rounded-xl px-3 text-left text-xs font-semibold text-blue-100/75 transition hover:bg-white/10 hover:text-white"
+          onClick={onSignOut}
+          disabled={signOutBusy}
+        >
+          <LogOut size={16} aria-hidden="true" />
+          <span>{signOutBusy ? "Signing out..." : "Log Out"}</span>
+        </button>
       </div>
     </aside>
   );

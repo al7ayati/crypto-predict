@@ -3,6 +3,12 @@ import { Download } from "lucide-react";
 
 export default function HistoricalPage({ assetData }) {
   const { symbol, historicalLogs } = assetData;
+  const formatPrice = (value) => new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: value < 1 ? 4 : 2,
+    maximumFractionDigits: value < 1 ? 4 : 2,
+  }).format(value);
 
   const exportCsv = () => {
     const header = ["date", "open_usd", "high_usd", "low_usd", "close_usd", "volume"];
@@ -37,10 +43,10 @@ export default function HistoricalPage({ assetData }) {
             {historicalLogs.map((log) => (
               <tr key={log.date}>
                 <td><strong>{log.date}</strong></td>
-                <td>{log.open.toLocaleString()}</td>
-                <td style={{ color: "#0FA968" }}>{log.high.toLocaleString()}</td>
-                <td style={{ color: "#E14C4C" }}>{log.low.toLocaleString()}</td>
-                <td><strong>{log.close.toLocaleString()}</strong></td>
+                <td>{formatPrice(log.open)}</td>
+                <td style={{ color: "#0FA968" }}>{formatPrice(log.high)}</td>
+                <td style={{ color: "#E14C4C" }}>{formatPrice(log.low)}</td>
+                <td><strong>{formatPrice(log.close)}</strong></td>
                 <td style={{ textAlign: "right" }}>{log.volume}</td>
               </tr>
             ))}

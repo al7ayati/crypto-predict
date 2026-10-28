@@ -75,5 +75,59 @@
       { "date": "2026-09-15", "open": 0.43, "high": 0.46, "low": 0.42, "close": 0.45, "volume": "1.1B" },
       { "date": "2026-09-14", "open": 0.41, "high": 0.44, "low": 0.40, "close": 0.43, "volume": "0.9B" }
     ]
+  },
+  "SOL": {
+    "symbol": "SOL",
+    "name": "SOLANA",
+    "currentPrice": 142.37,
+    "forecastPrice": 147.85,
+    "mape": 0.62,
+    "modelVersion": "LGBM v1.0",
+    "series": [
+      { "label": "Sep 1", "actual": 128.4, "forecast": null },
+      { "label": "Sep 5", "actual": 132.1, "forecast": null },
+      { "label": "Sep 10", "actual": 137.6, "forecast": null },
+      { "label": "Sep 15", "actual": 142.37, "forecast": 142.37 },
+      { "label": "Sep 20", "actual": null, "forecast": 145.1 },
+      { "label": "Sep 25", "actual": null, "forecast": 147.85 }
+    ],
+    "forecastRows": [
+      { "day": 1, "date": "Sep 16, 2026", "price": 143.12, "change": 0.53, "confidence": 89 },
+      { "day": 2, "date": "Sep 17, 2026", "price": 144.05, "change": 0.65, "confidence": 87 },
+      { "day": 3, "date": "Sep 18, 2026", "price": 145.1, "change": 0.73, "confidence": 84 },
+      { "day": 30, "date": "Oct 15, 2026", "price": 147.85, "change": 3.85, "confidence": 68 }
+    ],
+    "historicalLogs": [
+      { "date": "2026-09-15", "open": 139.8, "high": 143.9, "low": 138.6, "close": 142.37, "volume": "3.8B" },
+      { "date": "2026-09-14", "open": 136.1, "high": 140.5, "low": 134.9, "close": 139.8, "volume": "3.4B" },
+      { "date": "2026-09-13", "open": 133.6, "high": 137.2, "low": 132.4, "close": 136.1, "volume": "3.1B" }
+    ]
+  },
+  "XRP": {
+    "symbol": "XRP",
+    "name": "XRP",
+    "currentPrice": 0.6241,
+    "forecastPrice": 0.6492,
+    "mape": 0.48,
+    "modelVersion": "LGBM v1.0",
+    "series": [
+      { "label": "Sep 1", "actual": 0.572, "forecast": null },
+      { "label": "Sep 5", "actual": 0.586, "forecast": null },
+      { "label": "Sep 10", "actual": 0.603, "forecast": null },
+      { "label": "Sep 15", "actual": 0.6241, "forecast": 0.6241 },
+      { "label": "Sep 20", "actual": null, "forecast": 0.6367 },
+      { "label": "Sep 25", "actual": null, "forecast": 0.6492 }
+    ],
+    "forecastRows": [
+      { "day": 1, "date": "Sep 16, 2026", "price": 0.6272, "change": 0.50, "confidence": 91 },
+      { "day": 2, "date": "Sep 17, 2026", "price": 0.6318, "change": 0.73, "confidence": 88 },
+      { "day": 3, "date": "Sep 18, 2026", "price": 0.6367, "change": 0.78, "confidence": 86 },
+      { "day": 30, "date": "Oct 15, 2026", "price": 0.6492, "change": 4.02, "confidence": 71 }
+    ],
+    "historicalLogs": [
+      { "date": "2026-09-15", "open": 0.609, "high": 0.631, "low": 0.604, "close": 0.6241, "volume": "1.9B" },
+      { "date": "2026-09-14", "open": 0.597, "high": 0.613, "low": 0.591, "close": 0.609, "volume": "1.7B" },
+      { "date": "2026-09-13", "open": 0.584, "high": 0.601, "low": 0.579, "close": 0.597, "volume": "1.5B" }
+    ]
   }
 }

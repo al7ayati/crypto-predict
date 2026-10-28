@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import {
   ArrowRight,
-  TrendingUp,
   Eye,
   EyeOff,
   LockKeyhole,
@@ -9,8 +8,11 @@ import {
   ShieldCheck,
   UserRound
 } from "lucide-react";
+import BrandMark from "../components/BrandMark";
 import {
   createUserWithEmailAndPassword,
+  GoogleAuthProvider,
+  signInWithPopup,
   signInWithEmailAndPassword,
   sendPasswordResetEmail,
   updateProfile
@@ -21,7 +23,7 @@ const errorMessages = {
   "auth/email-already-in-use":
     "This email is already registered. Please sign in instead.",
   "auth/invalid-email": "Invalid email address format.",
-  "auth/weak-password": "Password must be at least 8 characters long.",
+  "auth/weak-password": "Password must be at least 6 characters long.",
   "auth/invalid-credential": "Invalid email or password.",
   "auth/user-not-found": "Account not found. Please sign up first.",
   "auth/wrong-password": "Invalid email or password.",
@@ -30,13 +32,19 @@ const errorMessages = {
   "auth/network-request-failed":
     "Network error. Check your connection and try again.",
   "auth/operation-not-allowed":
-    "Email and password authentication is not enabled in Firebase Console.",
+    "This sign-in method is not enabled in Firebase Authentication settings.",
   "auth/unauthorized-domain":
     "This website domain is not authorized in Firebase Authentication settings.",
   "auth/invalid-api-key":
     "The Firebase API key is invalid. Check your local environment configuration.",
   "auth/app-not-authorized":
-    "This application is not authorized to use Firebase Authentication."
+    "This application is not authorized to use Firebase Authentication.",
+  "auth/popup-blocked":
+    "The sign-in popup was blocked. Allow popups and try again.",
+  "auth/popup-closed-by-user":
+    "The sign-in window was closed before authentication completed.",
+  "auth/account-exists-with-different-credential":
+    "An account already exists with this email. Sign in using your original method."
 };
 
 export default function AuthPage() {
@@ -75,15 +83,21 @@ export default function AuthPage() {
       setError("Please enter your email address.");
       return;
     }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(cleanEmail)) {
+      setError("Invalid email address.");
+      return;
+    }
     if (isSignUp) {
       if (!username.trim()) {
         setError("Please enter a username.");
         return;
       }
-      if (password.length < 8) {
-        setError("Password must be at least 8 characters long.");
-        return;
-      }
+    }
+    if (!isReset && password.length < 6) {
+      setError("Password must be at least 6 characters long.");
+      return;
+    }
+    if (isSignUp) {
       if (password !== confirmPassword) {
         setError("Passwords do not match.");
         return;
@@ -121,13 +135,31 @@ export default function AuthPage() {
     }
   };
 
+  const handleGoogleSignIn = async () => {
+    if (busy) return;
+    setError("");
+    setNotice("");
+    setBusy(true);
+    try {
+      await signInWithPopup(auth, new GoogleAuthProvider());
+    } catch (requestError) {
+      if (requestError.code !== "auth/popup-closed-by-user") {
+        console.error("Google sign-in failed:", requestError.code, requestError.message);
+      }
+      setError(
+        errorMessages[requestError.code] ||
+          "Google sign-in failed. Please try again or use your email and password."
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="auth-screen">
       <section className="auth-showcase">
         <div className="auth-brand">
-          <span className="brand-mark">
-            <TrendingUp size={22} />
-          </span>
+          <BrandMark iconSize={22} />
           <span>
             CRYPTO<span className="brand-light">PREDICT</span>
           </span>
@@ -205,9 +237,7 @@ export default function AuthPage() {
 
       <section className="auth-form-side">
         <div className="auth-mobile-brand">
-          <span className="brand-mark">
-            <TrendingUp size={20} />
-          </span>
+          <BrandMark iconSize={20} />
           <strong>CRYPTO PREDICT</strong>
         </div>
         <div className="auth-card">
@@ -221,7 +251,7 @@ export default function AuthPage() {
             </span>
             <h2>
               {isSignUp
-                ? "Create your account"
+                ? "Create an account"
                 : isReset
                 ? "Reset your password"
                 : "Sign in"}
@@ -235,7 +265,7 @@ export default function AuthPage() {
             </p>
           </div>
 
-          <form className="auth-form" onSubmit={handleSubmit}>
+          <form className="auth-form" onSubmit={handleSubmit} noValidate>
             {isSignUp && (
               <label className="form-field">
                 <span>Username</span>
@@ -263,6 +293,7 @@ export default function AuthPage() {
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
                   placeholder="name@example.com"
+                  aria-invalid={Boolean(error)}
                   required
                 />
               </div>
@@ -281,9 +312,10 @@ export default function AuthPage() {
                     value={password}
                     onChange={(event) => setPassword(event.target.value)}
                     placeholder={
-                      isSignUp ? "At least 8 characters" : "Enter your password"
+                      isSignUp ? "At least 6 characters" : "Enter your password"
                     }
-                    minLength={isSignUp ? 8 : 1}
+                    minLength={6}
+                    aria-invalid={Boolean(error)}
                     required
                   />
                   <button
@@ -318,7 +350,7 @@ export default function AuthPage() {
                     value={confirmPassword}
                     onChange={(event) => setConfirmPassword(event.target.value)}
                     placeholder="Re-enter your password"
-                    minLength={8}
+                    minLength={6}
                     required
                   />
                   <button
@@ -385,6 +417,25 @@ export default function AuthPage() {
               {!busy && <ArrowRight size={18} />}
             </button>
           </form>
+
+          {!isReset && (
+            <>
+              <div className="my-5 flex items-center gap-3 text-[10px] font-semibold uppercase tracking-[.12em] text-slate-400">
+                <span className="h-px flex-1 bg-slate-200" />
+                <span>Or continue with</span>
+                <span className="h-px flex-1 bg-slate-200" />
+              </div>
+              <button
+                type="button"
+                className="flex min-h-11 w-full items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-blue-200 hover:bg-slate-50"
+                onClick={handleGoogleSignIn}
+                disabled={busy}
+              >
+                <span className="text-base font-bold text-blue-600" aria-hidden="true">G</span>
+                {busy ? "Connecting..." : "Sign in with Google"}
+              </button>
+            </>
+          )}
 
           <div className="auth-switch">
             {isSignUp ? (
