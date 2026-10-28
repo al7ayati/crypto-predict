@@ -2,7 +2,7 @@
 
 Crypto Predict is a React and Vite cryptocurrency analytics demo. It includes Firebase email/password and Google authentication, a live market dashboard, stored historical samples, forecast visualizations, a backtesting summary, and CSV export.
 
-> **Data and feature notice:** The dashboard requests market prices and aggregate market statistics from CoinGecko and refreshes them every 60 seconds when the public API is available. If a request fails, it clearly falls back to sample data. Historical series, forecast values, AI signals, and backtest metrics are demonstration samples—not a live model pipeline or independently verified performance.
+> **Data and feature notice:** The dashboard requests market prices and aggregate market statistics from CoinGecko and refreshes them every 60 seconds when the public API is available. Prediction views use the latest fetched price as an anchor, while forecast values, AI signals, and backtest metrics remain demonstration samples—not a live model pipeline or independently verified performance. Historical Data requests provider price observations for the selected asset and date range; if unavailable, it clearly falls back to labeled sample OHLC rows. CoinGecko's public API may apply rate limits.
 
 ## Requirements
 
@@ -75,8 +75,8 @@ Run these commands from the repository root. Ensure `.env.local` is populated **
 ## Current feature boundaries
 
 - **Dashboard:** fetches live prices, 24-hour changes, volume, sparklines, and global market statistics for BTC, ETH, SOL, XRP, and ADA from the CoinGecko public API. The AI signals and sentiment remain labeled demonstration values.
-- **Historical data:** uses stored sample OHLC data with date-range filtering, text search, sortable date/price/volume columns, pagination, and CSV export. The controls apply to the available sample records; data is not a live historical feed.
-- **Predictions:** forecast prices and signals are stored demonstration samples. The chart supports EMA 20/50, RSI, and Bollinger Band overlays, and the signal card displays an illustrative stop-loss. These are not generated from the live market feed and are not financial advice.
+- **Historical data:** requests CoinGecko price observations for the selected asset and date range, with text search, sortable date/price columns, pagination, and CSV export. Provider observations are prices, not OHLC candles or trade volume. If the provider is unavailable, the page falls back to labeled sample OHLC data.
+- **Predictions:** the latest fetched market price anchors the chart and target scaling. Forecast prices, confidence, indicators, and signals remain stored demonstration samples and are not produced by a live model or financial advice.
 - **Backtesting:** metrics, cumulative-return samples, and trades are demonstration data. The chart derives weekly P&L changes from cumulative samples; period and trade filters only operate over the data currently available. Results are not verified historical performance.
 - **Settings and administration:** not included until there are real user settings or secured backend operations to manage.
 

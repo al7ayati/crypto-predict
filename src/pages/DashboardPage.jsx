@@ -50,7 +50,7 @@ function formatPrice(price) {
   }).format(price);
 }
 
-export default function DashboardPage({ marketStats = MOCK_MARKET_STATS, marketAssets = MOCK_MARKET_ASSETS }) {
+export default function DashboardPage({ marketStats = MOCK_MARKET_STATS, marketAssets = MOCK_MARKET_ASSETS, onMarketUpdate }) {
   const [assets, setAssets] = useState(marketAssets);
   const [stats, setStats] = useState(marketStats);
   const [dataState, setDataState] = useState("loading");
@@ -113,6 +113,7 @@ export default function DashboardPage({ marketStats = MOCK_MARKET_STATS, marketA
 
       const marketCapChange = globalData.market_cap_change_percentage_24h_usd;
       setAssets(mappedAssets);
+      onMarketUpdate?.(Object.assign(mappedAssets, { updatedAt: new Date().toISOString() }));
       setStats([
         {
           label: "Total Market Cap",
@@ -137,7 +138,7 @@ export default function DashboardPage({ marketStats = MOCK_MARKET_STATS, marketA
     } finally {
       if (!signal?.aborted) setRefreshing(false);
     }
-  }, [marketAssets, marketStats]);
+  }, [marketAssets, marketStats, onMarketUpdate]);
 
   useEffect(() => {
     const controller = new AbortController();

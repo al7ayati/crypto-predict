@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { ArrowDown, ArrowUp, ArrowUpDown, Download, Search } from "lucide-react";
 
 const PAGE_SIZE = 10;
+const COINGECKO_IDS = { BTC: "bitcoin", ETH: "ethereum", SOL: "solana", XRP: "ripple", ADA: "cardano" };
 
 function volumeValue(value) {
   const match = String(value).match(/^([\d.]+)\s*([KMBT])?$/i);
@@ -28,6 +29,9 @@ export default function HistoricalPage({
   toDate,
 }) {
   const { symbol, historicalLogs } = assetData;
+  const [liveLogs, setLiveLogs] = useState(null);
+  const [historyState, setHistoryState] = useState("loading");
+  const [historyError, setHistoryError] = useState("");
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("date");
   const [sortDirection, setSortDirection] = useState("desc");
@@ -35,6 +39,37 @@ export default function HistoricalPage({
   useEffect(() => {
     setPage(1);
   }, [fromDate, toDate]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const end = toDate ? new Date(`${toDate}T23:59:59Z`) : new Date();
+    const start = fromDate ? new Date(`${fromDate}T00:00:00Z`) : new Date(end.getTime() - 30 * 86400000);
+    const params = new URLSearchParams({ vs_currency: "usd", from: String(Math.floor(start.getTime() / 1000)), to: String(Math.floor(end.getTime() / 1000) + 1) });
+    setHistoryState("loading");
+    setHistoryError("");
+    setLiveLogs(null);
+    fetch(`https://api.coingecko.com/api/v3/coins/${COINGECKO_IDS[symbol]}/market_chart/range?${params}`, { signal: controller.signal, headers: { accept: "application/json" } })
+      .then((response) => {
+        if (!response.ok) throw new Error(`Market provider returned HTTP ${response.status}`);
+        return response.json();
+      })
+      .then((result) => {
+        const prices = Array.isArray(result.prices) ? result.prices : [];
+        const dailyPrices = new Map();
+        prices.forEach(([timestamp, price]) => dailyPrices.set(new Date(timestamp).toISOString().slice(0, 10), price));
+        const logs = [...dailyPrices].map(([date, price]) => ({ date, open: price, high: price, low: price, close: price, volume: "—" }));
+        if (!logs.length) throw new Error("No historical price observations were returned for this date range.");
+        setLiveLogs(logs);
+        setHistoryState("live");
+      })
+      .catch((error) => {
+        if (error.name === "AbortError") return;
+        setLiveLogs(null);
+        setHistoryState("sample");
+        setHistoryError("Live historical data is unavailable. Showing labeled sample records.");
+      });
+    return () => controller.abort();
+  }, [fromDate, symbol, toDate]);
 
   const formatPrice = (value) => new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -45,7 +80,7 @@ export default function HistoricalPage({
 
   const filteredLogs = useMemo(() => {
     const query = search.trim().toLowerCase();
-    return historicalLogs
+    return (liveLogs || historicalLogs)
       .filter((log) => (!fromDate || log.date >= fromDate) && (!toDate || log.date <= toDate))
       .filter((log) => !query || [log.date, log.open, log.high, log.low, log.close, log.volume]
         .some((value) => String(value).toLowerCase().includes(query)))
@@ -65,7 +100,7 @@ export default function HistoricalPage({
           : leftValue - rightValue;
         return sortDirection === "asc" ? comparison : -comparison;
       });
-  }, [fromDate, historicalLogs, search, sortBy, sortDirection, toDate]);
+  }, [fromDate, historicalLogs, liveLogs, search, sortBy, sortDirection, toDate]);
   const pageCount = Math.max(1, Math.ceil(filteredLogs.length / PAGE_SIZE));
   const currentPage = Math.min(page, pageCount);
   const visibleLogs = filteredLogs.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
@@ -82,14 +117,14 @@ export default function HistoricalPage({
   };
 
   const exportCsv = () => {
-    const header = ["date", "open_usd", "high_usd", "low_usd", "close_usd", "volume"];
-    const rows = filteredLogs.map((log) => [log.date, log.open, log.high, log.low, log.close, log.volume]);
+    const header = liveLogs ? ["date", "price_usd"] : ["date", "open_usd", "high_usd", "low_usd", "close_usd", "volume"];
+    const rows = filteredLogs.map((log) => liveLogs ? [log.date, log.close] : [log.date, log.open, log.high, log.low, log.close, log.volume]);
     const csv = [header, ...rows].map((row) => row.map((value) => '"' + String(value ?? "").replaceAll('"', '""') + '"').join(",")).join("\r\n");
     const blob = new Blob(["\uFEFF", csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = symbol.toLowerCase() + "-historical-sample.csv";
+    link.download = symbol.toLowerCase() + (liveLogs ? "-historical-prices.csv" : "-historical-sample.csv");
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -117,9 +152,9 @@ export default function HistoricalPage({
       <div className="historical-header">
         <div>
           <h3 className="page-panel-title">Historical Price Records - {symbol}</h3>
-          <p className="dashboard-panel-subtitle">Stored OHLC sample data · not a live market feed</p>
+          <p className="dashboard-panel-subtitle">{historyState === "loading" ? "Loading market history…" : historyState === "live" ? "CoinGecko historical price observations · USD" : "Stored OHLC sample data · not a live market feed"}</p>
         </div>
-        <button className="history-export-button" type="button" onClick={exportCsv}>
+        <button className="history-export-button" type="button" onClick={exportCsv} disabled={filteredLogs.length === 0}>
           <Download size={16} /> Export CSV
         </button>
       </div>
@@ -146,9 +181,9 @@ export default function HistoricalPage({
           <thead>
             <tr>
               <th aria-sort={sortBy === "date" ? sortDirection === "asc" ? "ascending" : "descending" : "none"}>{renderSortButton("date", "Record Date")}</th>
-              <th>Open (USD)</th>
-              <th>High (USD)</th>
-              <th>Low (USD)</th>
+              <th>{liveLogs ? "Price (USD)" : "Open (USD)"}</th>
+              {!liveLogs && <th>High (USD)</th>}
+              {!liveLogs && <th>Low (USD)</th>}
               <th aria-sort={sortBy === "price" ? sortDirection === "asc" ? "ascending" : "descending" : "none"}>{renderSortButton("price", "Close / Price")}</th>
               <th style={{ textAlign: "right" }} aria-sort={sortBy === "volume" ? sortDirection === "asc" ? "ascending" : "descending" : "none"}>{renderSortButton("volume", "Volume")}</th>
             </tr>
@@ -157,15 +192,15 @@ export default function HistoricalPage({
             {visibleLogs.map((log) => (
               <tr key={log.date}>
                 <td><strong>{log.date}</strong></td>
-                <td>{formatPrice(log.open)}</td>
-                <td style={{ color: "#0FA968" }}>{formatPrice(log.high)}</td>
-                <td style={{ color: "#E14C4C" }}>{formatPrice(log.low)}</td>
+                <td>{formatPrice(liveLogs ? log.close : log.open)}</td>
+                {!liveLogs && <td style={{ color: "#0FA968" }}>{formatPrice(log.high)}</td>}
+                {!liveLogs && <td style={{ color: "#E14C4C" }}>{formatPrice(log.low)}</td>}
                 <td><strong>{formatPrice(log.close)}</strong></td>
                 <td style={{ textAlign: "right" }}>{log.volume}</td>
               </tr>
             ))}
             {visibleLogs.length === 0 && (
-              <tr><td colSpan={6} style={{ textAlign: "center" }}>No records match these filters.</td></tr>
+              <tr><td colSpan={liveLogs ? 4 : 6} style={{ textAlign: "center" }}>{historyState === "loading" ? "Loading historical prices…" : "No records match these filters."}</td></tr>
             )}
           </tbody>
         </table>
@@ -208,6 +243,7 @@ export default function HistoricalPage({
           </button>
         </div>
       </nav>
+      <p className="mt-3 text-[10px] text-slate-400" role={historyError ? "status" : undefined}>{historyError || (historyState === "live" ? "Prices refresh when the asset or date range changes. CoinGecko may limit public API requests." : "Sample records are provided for demonstration only.")}</p>
     </div>
   );
 }

@@ -35,6 +35,7 @@ function getNavFromPath(pathname) {
 export default function App() {
   const [user, setUser] = useState(undefined);
   const [selectedSymbol, setSelectedSymbol] = useState("BTC");
+  const [liveAssets, setLiveAssets] = useState(null);
   const [historicalFromDate, setHistoricalFromDate] = useState("");
   const [historicalToDate, setHistoricalToDate] = useState("");
   const [activeNav, setActiveNav] = useState(() => getNavFromPath(window.location.pathname));
@@ -83,7 +84,22 @@ export default function App() {
     return () => window.removeEventListener("popstate", syncRoute);
   }, [user]);
 
-  const currentAssetData = cryptoData[selectedSymbol];
+  const baseAssetData = cryptoData[selectedSymbol];
+  const liveAsset = liveAssets?.find((asset) => asset.symbol === selectedSymbol);
+  const currentAssetData = liveAsset
+    ? {
+        ...baseAssetData,
+        currentPrice: liveAsset.price,
+        forecastPrice: liveAsset.price * (baseAssetData.forecastPrice / baseAssetData.currentPrice),
+        forecastRows: baseAssetData.forecastRows.map((row) => ({
+          ...row,
+          price: liveAsset.price * (row.price / baseAssetData.currentPrice),
+        })),
+        marketChange: liveAsset.change,
+        marketUpdatedAt: liveAssets.updatedAt,
+        isLive: true,
+      }
+    : { ...baseAssetData, isLive: false };
 
   const navigate = useCallback((navKey) => {
     const path = ROUTES[navKey];
@@ -99,10 +115,12 @@ export default function App() {
     setActiveNav(navKey);
   }, [user]);
 
+  const handleMarketUpdate = useCallback((assets) => setLiveAssets(assets), []);
+
   const renderActivePage = () => {
     switch (activeNav) {
       case "dashboard":
-        return <DashboardPage />;
+        return <DashboardPage onMarketUpdate={handleMarketUpdate} />;
       case "historical":
         return (
           <HistoricalPage

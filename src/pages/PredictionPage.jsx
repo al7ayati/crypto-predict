@@ -104,7 +104,7 @@ export default function PredictionPage({ assetData }) {
             </span>
             <h2 className="mt-4 text-2xl font-bold tracking-tight sm:text-3xl">{assetData.name} Forecast</h2>
             <p className="mt-2 max-w-xl text-sm leading-6 text-blue-100/65">
-              A model-generated outlook based on the stored demonstration sample. Use the controls to explore the forecast view.
+              The latest market price anchors this illustrative sample projection. Forecasts and signals are demonstration data, not a live model output.
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
@@ -133,7 +133,7 @@ export default function PredictionPage({ assetData }) {
           <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
             <div>
               <h3 className="text-base font-bold text-slate-900">Price forecast</h3>
-              <p className="mt-1 text-xs text-slate-500">Historical sample and model projection · {timeframe}</p>
+              <p className="mt-1 text-xs text-slate-500">{assetData.isLive ? "Live price anchor with illustrative sample projection" : "Sample price anchor and illustrative projection"} · {timeframe}</p>
             </div>
             <div className="flex items-center gap-4 text-[10px] font-medium text-slate-500">
               <span className="inline-flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-blue-600" />Actual</span>
@@ -240,7 +240,7 @@ export default function PredictionPage({ assetData }) {
                 <div className="h-full rounded-full bg-gradient-to-r from-blue-600 to-violet-500" style={{ width: `${confidence}%` }} />
               </div>
               <div className="mt-4 flex justify-between text-xs">
-                <span className="text-slate-500">Current price</span>
+              <span className="text-slate-500">Current price {assetData.isLive ? "· live" : "· sample"}</span>
                 <strong className="text-slate-800">{formatPrice(assetData.currentPrice)}</strong>
               </div>
               <div className="mt-2 flex justify-between text-xs">
