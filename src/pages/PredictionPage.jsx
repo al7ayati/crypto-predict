@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   CartesianGrid,
   Line,
@@ -8,6 +8,8 @@ import {
   Tooltip,
   XAxis,
   YAxis,
+  Area,
+  ComposedChart,
 } from "recharts";
 import { ArrowDownRight, ArrowUpRight, BrainCircuit, CheckCircle2, Clock3, Sparkles } from "lucide-react";
 import { MOCK_PREDICTION_CHARTS } from "../data/mockMarketData";
@@ -25,21 +27,72 @@ const formatPrice = (value) => new Intl.NumberFormat("en-US", {
   maximumFractionDigits: value < 1 ? 4 : 2,
 }).format(value);
 
+function addIndicators(points) {
+  const actualPoints = points.filter((point) => point.actual !== null);
+  const ema = (values, period) => {
+    const multiplier = 2 / (period + 1);
+    return values.reduce((result, value, index) => {
+      result.push(index === 0 ? value : value * multiplier + result[index - 1] * (1 - multiplier));
+      return result;
+    }, []);
+  };
+  const values = actualPoints.map((point) => point.actual);
+  const ema20 = ema(values, 20);
+  const ema50 = ema(values, 50);
+  const actualIndexByLabel = new Map(actualPoints.map((point, index) => [point.label, index]));
+
+  return points.map((point) => {
+    const index = actualIndexByLabel.get(point.label);
+    if (index === undefined) {
+      return { ...point, ema20: null, ema50: null, bollingerUpper: null, bollingerLower: null, rsi: null };
+    }
+
+    const windowValues = values.slice(Math.max(0, index - 19), index + 1);
+    const average = windowValues.reduce((sum, value) => sum + value, 0) / windowValues.length;
+    const deviation = Math.sqrt(windowValues.reduce((sum, value) => sum + (value - average) ** 2, 0) / windowValues.length);
+    const rsiWindow = values.slice(Math.max(0, index - 13), index + 1);
+    const changes = rsiWindow.slice(1).map((value, changeIndex) => value - rsiWindow[changeIndex]);
+    const gains = changes.reduce((sum, change) => sum + Math.max(change, 0), 0);
+    const losses = changes.reduce((sum, change) => sum + Math.max(-change, 0), 0);
+    const rsi = changes.length === 0
+      ? null
+      : losses === 0
+        ? 100
+        : 100 - 100 / (1 + gains / losses);
+
+    return {
+      ...point,
+      ema20: ema20[index],
+      ema50: ema50[index],
+      bollingerUpper: average + deviation * 2,
+      bollingerLower: average - deviation * 2,
+      rsi,
+    };
+  });
+}
+
 export default function PredictionPage({ assetData }) {
   const [timeframe, setTimeframe] = useState("24H");
-  const chartData = MOCK_PREDICTION_CHARTS[timeframe].map((point) => ({
+  const [visibleIndicators, setVisibleIndicators] = useState([]);
+  const chartData = useMemo(() => addIndicators(MOCK_PREDICTION_CHARTS[timeframe].map((point) => ({
     label: point.label,
     actual: point.actual === null ? null : assetData.currentPrice * (1 + point.actual),
     forecast: point.forecast === null ? null : assetData.currentPrice * (1 + point.forecast),
-  }));
+  }))), [assetData.currentPrice, timeframe]);
   const expectedChange = ((assetData.forecastPrice - assetData.currentPrice) / assetData.currentPrice) * 100;
   const signal = expectedChange > 0.5 ? "BUY" : expectedChange < -0.5 ? "SELL" : "HOLD";
+  const stopLoss = assetData.currentPrice * (signal === "SELL" ? 1.015 : 0.985);
   const confidence = assetData.forecastRows[0]?.confidence || 82;
   const signalStyle = signal === "BUY"
     ? "bg-emerald-50 text-emerald-700"
     : signal === "SELL"
       ? "bg-rose-50 text-rose-700"
       : "bg-amber-50 text-amber-700";
+  const toggleIndicator = (indicator) => {
+    setVisibleIndicators((current) => current.includes(indicator)
+    ? current.filter((value) => value !== indicator)
+    : [...current, indicator]);
+  };
 
   return (
     <div className="space-y-6">
@@ -103,12 +156,63 @@ export default function PredictionPage({ assetData }) {
                   width={55}
                 />
                 <Tooltip formatter={(value) => formatPrice(value)} contentStyle={{ borderRadius: 12, borderColor: "#e5ebf4", fontSize: 12 }} />
-                <ReferenceLine x={chartData[3]?.label} stroke="#cbd5e1" strokeDasharray="3 4" />
+                <ReferenceLine x="Now" stroke="#64748b" strokeDasharray="4 4" label={{ value: "NOW", position: "insideTopRight", fill: "#64748b", fontSize: 9, fontWeight: 700 }} />
+                {visibleIndicators.includes("bollinger") && (
+                  <>
+                    <Line type="monotone" dataKey="bollingerUpper" name="Bollinger upper" stroke="#c4b5fd" strokeWidth={1.5} dot={false} connectNulls />
+                    <Line type="monotone" dataKey="bollingerLower" name="Bollinger lower" stroke="#c4b5fd" strokeWidth={1.5} dot={false} connectNulls />
+                  </>
+                )}
                 <Line type="monotone" dataKey="actual" name="Actual price" stroke="#2563eb" strokeWidth={2.5} dot={{ r: 3, fill: "#2563eb", strokeWidth: 0 }} activeDot={{ r: 5 }} connectNulls />
                 <Line type="monotone" dataKey="forecast" name="Predicted price" stroke="#8b5cf6" strokeWidth={2.5} strokeDasharray="6 5" dot={{ r: 3, fill: "#8b5cf6", strokeWidth: 0 }} connectNulls />
+                {visibleIndicators.includes("ema20") && <Line type="monotone" dataKey="ema20" name="EMA 20" stroke="#f59e0b" strokeWidth={1.5} dot={false} connectNulls />}
+                {visibleIndicators.includes("ema50") && <Line type="monotone" dataKey="ema50" name="EMA 50" stroke="#10b981" strokeWidth={1.5} dot={false} connectNulls />}
               </LineChart>
             </ResponsiveContainer>
           </div>
+          <div className="mt-4 flex flex-wrap items-center gap-2" role="group" aria-label="Toggle technical indicators">
+            <span className="mr-1 text-[10px] font-semibold text-slate-500">Indicators</span>
+            {[
+              ["ema20", "EMA 20"],
+              ["ema50", "EMA 50"],
+              ["bollinger", "Bollinger Bands"],
+              ["rsi", "RSI"],
+            ].map(([key, label]) => {
+              const active = visibleIndicators.includes(key);
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => toggleIndicator(key)}
+                  className={`rounded-lg border px-2.5 py-1.5 text-[10px] font-semibold transition ${active ? "border-blue-200 bg-blue-50 text-blue-700" : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"}`}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+          {visibleIndicators.includes("rsi") && (
+            <div className="mt-4 border-t border-slate-100 pt-4">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-[10px] font-semibold text-slate-600">Relative Strength Index (RSI)</span>
+                <span className="text-[10px] text-slate-400">Sample-based · 0–100</span>
+              </div>
+              <div className="h-[110px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={chartData} margin={{ top: 4, right: 12, left: 3, bottom: 0 }}>
+                    <CartesianGrid stroke="#edf1f7" strokeDasharray="4 5" vertical={false} />
+                    <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: "#8290a5" }} />
+                    <YAxis domain={[0, 100]} ticks={[0, 30, 70, 100]} axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: "#8290a5" }} width={30} />
+                    <Tooltip formatter={(value) => [Number(value).toFixed(1), "RSI"]} contentStyle={{ borderRadius: 12, borderColor: "#e5ebf4", fontSize: 11 }} />
+                    <ReferenceLine y={30} stroke="#cbd5e1" strokeDasharray="3 4" />
+                    <ReferenceLine y={70} stroke="#cbd5e1" strokeDasharray="3 4" />
+                    <Area type="monotone" dataKey="rsi" name="RSI" stroke="#f59e0b" fill="#fef3c7" fillOpacity={0.45} connectNulls />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
           <p className="mt-3 text-[10px] leading-5 text-slate-400">Sample model output only. Forecasts are illustrative and are not financial advice.</p>
         </section>
 
@@ -142,6 +246,10 @@ export default function PredictionPage({ assetData }) {
               <div className="mt-2 flex justify-between text-xs">
                 <span className="text-slate-500">Target price</span>
                 <strong className="text-slate-800">{formatPrice(assetData.forecastPrice)}</strong>
+              </div>
+              <div className="mt-2 flex justify-between text-xs">
+                <span className="text-slate-500">Stop loss <span className="text-slate-400">(1.5% risk)</span></span>
+                <strong className="text-rose-700">{formatPrice(stopLoss)}</strong>
               </div>
             </div>
           </section>

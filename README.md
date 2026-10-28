@@ -75,7 +75,9 @@ Run these commands from the repository root. Ensure `.env.local` is populated **
 ## Current feature boundaries
 
 - **Dashboard:** fetches live prices, 24-hour changes, volume, sparklines, and global market statistics for BTC, ETH, SOL, XRP, and ADA from the CoinGecko public API. The AI signals and sentiment remain labeled demonstration values.
-- **Historical data, predictions, and backtesting:** use stored sample data for demonstration and inspection. Historical data can be exported to CSV. These pages do not represent verified trading performance or a live prediction service.
+- **Historical data:** uses stored sample OHLC data with date-range filtering, text search, sortable date/price/volume columns, pagination, and CSV export. The controls apply to the available sample records; data is not a live historical feed.
+- **Predictions:** forecast prices and signals are stored demonstration samples. The chart supports EMA 20/50, RSI, and Bollinger Band overlays, and the signal card displays an illustrative stop-loss. These are not generated from the live market feed and are not financial advice.
+- **Backtesting:** metrics, cumulative-return samples, and trades are demonstration data. The chart derives weekly P&L changes from cumulative samples; period and trade filters only operate over the data currently available. Results are not verified historical performance.
 - **Settings and administration:** not included until there are real user settings or secured backend operations to manage.
 
 All forecasts are for educational purposes only and do not constitute financial advice.

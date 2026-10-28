@@ -35,6 +35,8 @@ function getNavFromPath(pathname) {
 export default function App() {
   const [user, setUser] = useState(undefined);
   const [selectedSymbol, setSelectedSymbol] = useState("BTC");
+  const [historicalFromDate, setHistoricalFromDate] = useState("");
+  const [historicalToDate, setHistoricalToDate] = useState("");
   const [activeNav, setActiveNav] = useState(() => getNavFromPath(window.location.pathname));
   const [signOutBusy, setSignOutBusy] = useState(false);
   const [signOutError, setSignOutError] = useState("");
@@ -102,7 +104,13 @@ export default function App() {
       case "dashboard":
         return <DashboardPage />;
       case "historical":
-        return <HistoricalPage assetData={currentAssetData} />;
+        return (
+          <HistoricalPage
+            assetData={currentAssetData}
+            fromDate={historicalFromDate}
+            toDate={historicalToDate}
+          />
+        );
       case "backtest":
         return <BacktestPage />;
       case "prediction":
@@ -179,6 +187,32 @@ export default function App() {
                 </select>
                 <ChevronDown size={15} aria-hidden="true" />
               </label>
+            )}
+            {activeNav === "historical" && (
+              <>
+                <label className="flex flex-col gap-1 text-[9px] font-semibold text-slate-500">
+                  From
+                  <input
+                    type="date"
+                    value={historicalFromDate}
+                    max={historicalToDate || undefined}
+                    onChange={(event) => setHistoricalFromDate(event.target.value)}
+                    aria-label="Historical data start date"
+                    className="h-[39px] rounded-lg border border-slate-200 bg-white px-2 text-[10px] font-medium text-slate-700"
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-[9px] font-semibold text-slate-500">
+                  To
+                  <input
+                    type="date"
+                    value={historicalToDate}
+                    min={historicalFromDate || undefined}
+                    onChange={(event) => setHistoricalToDate(event.target.value)}
+                    aria-label="Historical data end date"
+                    className="h-[39px] rounded-lg border border-slate-200 bg-white px-2 text-[10px] font-medium text-slate-700"
+                  />
+                </label>
+              </>
             )}
           </div>
         </header>
