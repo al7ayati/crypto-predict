@@ -86,12 +86,17 @@ export default function App() {
 
   const baseAssetData = cryptoData[selectedSymbol];
   const liveAsset = liveAssets?.find((asset) => asset.symbol === selectedSymbol);
+  const forecastRows = baseAssetData.forecastRows.map((row) => ({
+    ...row,
+    date: new Intl.DateTimeFormat("en-US", { month: "short", day: "2-digit", year: "numeric" })
+      .format(new Date(Date.now() + row.day * 86_400_000)),
+  }));
   const currentAssetData = liveAsset
     ? {
         ...baseAssetData,
         currentPrice: liveAsset.price,
         forecastPrice: liveAsset.price * (baseAssetData.forecastPrice / baseAssetData.currentPrice),
-        forecastRows: baseAssetData.forecastRows.map((row) => ({
+        forecastRows: forecastRows.map((row) => ({
           ...row,
           price: liveAsset.price * (row.price / baseAssetData.currentPrice),
         })),
@@ -99,7 +104,7 @@ export default function App() {
         marketUpdatedAt: liveAssets.updatedAt,
         isLive: true,
       }
-    : { ...baseAssetData, isLive: false };
+    : { ...baseAssetData, forecastRows, isLive: false };
 
   const navigate = useCallback((navKey) => {
     const path = ROUTES[navKey];
@@ -213,7 +218,7 @@ export default function App() {
                   <input
                     type="date"
                     value={historicalFromDate}
-                    max={historicalToDate || undefined}
+                    max={historicalToDate || new Date().toISOString().slice(0, 10)}
                     onChange={(event) => setHistoricalFromDate(event.target.value)}
                     aria-label="Historical data start date"
                     className="h-[39px] rounded-lg border border-slate-200 bg-white px-2 text-[10px] font-medium text-slate-700"
@@ -225,6 +230,7 @@ export default function App() {
                     type="date"
                     value={historicalToDate}
                     min={historicalFromDate || undefined}
+                    max={new Date().toISOString().slice(0, 10)}
                     onChange={(event) => setHistoricalToDate(event.target.value)}
                     aria-label="Historical data end date"
                     className="h-[39px] rounded-lg border border-slate-200 bg-white px-2 text-[10px] font-medium text-slate-700"

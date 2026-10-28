@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   CartesianGrid,
   Line,
@@ -15,6 +15,7 @@ import { ArrowDownRight, ArrowUpRight, BrainCircuit, CheckCircle2, Clock3, Spark
 import { MOCK_PREDICTION_CHARTS } from "../data/mockMarketData";
 
 const TIMEFRAMES = ["1H", "24H", "7D"];
+const COINGECKO_IDS = { BTC: "bitcoin", ETH: "ethereum", SOL: "solana", XRP: "ripple", ADA: "cardano" };
 const FACTORS = [
   "Trading volume increased over the latest sample window",
   "Short-term momentum remains above the recent average",
@@ -74,14 +75,46 @@ function addIndicators(points) {
 export default function PredictionPage({ assetData }) {
   const [timeframe, setTimeframe] = useState("24H");
   const [visibleIndicators, setVisibleIndicators] = useState([]);
+  const [livePrice, setLivePrice] = useState(null);
+  const [priceFeedError, setPriceFeedError] = useState(false);
+  useEffect(() => {
+    const controller = new AbortController();
+    const coinId = COINGECKO_IDS[assetData.symbol];
+    if (!coinId) return undefined;
+    setLivePrice(null);
+    setPriceFeedError(false);
+    const loadPrice = async () => {
+      try {
+        const params = new URLSearchParams({ ids: coinId, vs_currencies: "usd" });
+        const response = await fetch(`https://api.coingecko.com/api/v3/simple/price?${params}`, { signal: controller.signal, headers: { accept: "application/json" } });
+        if (!response.ok) throw new Error(`Market provider returned HTTP ${response.status}`);
+        const result = await response.json();
+        const price = result?.[coinId]?.usd;
+        if (typeof price !== "number" || !Number.isFinite(price)) throw new Error("Market provider returned an invalid price.");
+        setLivePrice(price);
+        setPriceFeedError(false);
+      } catch (error) {
+        if (error.name !== "AbortError") setPriceFeedError(true);
+      }
+    };
+    loadPrice();
+    const intervalId = window.setInterval(loadPrice, 60_000);
+    return () => {
+      controller.abort();
+      window.clearInterval(intervalId);
+    };
+  }, [assetData.symbol]);
+  const currentPrice = livePrice ?? assetData.currentPrice;
+  const forecastPrice = currentPrice * (assetData.forecastPrice / assetData.currentPrice);
+  const hasLivePrice = livePrice !== null || assetData.isLive;
   const chartData = useMemo(() => addIndicators(MOCK_PREDICTION_CHARTS[timeframe].map((point) => ({
     label: point.label,
-    actual: point.actual === null ? null : assetData.currentPrice * (1 + point.actual),
-    forecast: point.forecast === null ? null : assetData.currentPrice * (1 + point.forecast),
-  }))), [assetData.currentPrice, timeframe]);
-  const expectedChange = ((assetData.forecastPrice - assetData.currentPrice) / assetData.currentPrice) * 100;
+    actual: point.actual === null ? null : currentPrice * (1 + point.actual),
+    forecast: point.forecast === null ? null : currentPrice * (1 + point.forecast),
+  }))), [currentPrice, timeframe]);
+  const expectedChange = ((forecastPrice - currentPrice) / currentPrice) * 100;
   const signal = expectedChange > 0.5 ? "BUY" : expectedChange < -0.5 ? "SELL" : "HOLD";
-  const stopLoss = assetData.currentPrice * (signal === "SELL" ? 1.015 : 0.985);
+  const stopLoss = currentPrice * (signal === "SELL" ? 1.015 : 0.985);
   const confidence = assetData.forecastRows[0]?.confidence || 82;
   const signalStyle = signal === "BUY"
     ? "bg-emerald-50 text-emerald-700"
@@ -133,11 +166,11 @@ export default function PredictionPage({ assetData }) {
           <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
             <div>
               <h3 className="text-base font-bold text-slate-900">Price forecast</h3>
-              <p className="mt-1 text-xs text-slate-500">{assetData.isLive ? "Live price anchor with illustrative sample projection" : "Sample price anchor and illustrative projection"} · {timeframe}</p>
+              <p className="mt-1 text-xs text-slate-500">{hasLivePrice ? "Live price anchor with illustrative sample projection" : "Sample price anchor and illustrative projection"} · {timeframe}</p>
             </div>
             <div className="flex items-center gap-4 text-[10px] font-medium text-slate-500">
-              <span className="inline-flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-blue-600" />Actual</span>
-              <span className="inline-flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-violet-500" />Predicted</span>
+              <span className="inline-flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-blue-600" />Sample history</span>
+              <span className="inline-flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-violet-500" />Sample projection</span>
             </div>
           </div>
           <div className="h-[290px] w-full">
@@ -163,8 +196,8 @@ export default function PredictionPage({ assetData }) {
                     <Line type="monotone" dataKey="bollingerLower" name="Bollinger lower" stroke="#c4b5fd" strokeWidth={1.5} dot={false} connectNulls />
                   </>
                 )}
-                <Line type="monotone" dataKey="actual" name="Actual price" stroke="#2563eb" strokeWidth={2.5} dot={{ r: 3, fill: "#2563eb", strokeWidth: 0 }} activeDot={{ r: 5 }} connectNulls />
-                <Line type="monotone" dataKey="forecast" name="Predicted price" stroke="#8b5cf6" strokeWidth={2.5} strokeDasharray="6 5" dot={{ r: 3, fill: "#8b5cf6", strokeWidth: 0 }} connectNulls />
+                <Line type="monotone" dataKey="actual" name="Sample history" stroke="#2563eb" strokeWidth={2.5} dot={{ r: 3, fill: "#2563eb", strokeWidth: 0 }} activeDot={{ r: 5 }} connectNulls />
+                <Line type="monotone" dataKey="forecast" name="Sample projection" stroke="#8b5cf6" strokeWidth={2.5} strokeDasharray="6 5" dot={{ r: 3, fill: "#8b5cf6", strokeWidth: 0 }} connectNulls />
                 {visibleIndicators.includes("ema20") && <Line type="monotone" dataKey="ema20" name="EMA 20" stroke="#f59e0b" strokeWidth={1.5} dot={false} connectNulls />}
                 {visibleIndicators.includes("ema50") && <Line type="monotone" dataKey="ema50" name="EMA 50" stroke="#10b981" strokeWidth={1.5} dot={false} connectNulls />}
               </LineChart>
@@ -240,12 +273,12 @@ export default function PredictionPage({ assetData }) {
                 <div className="h-full rounded-full bg-gradient-to-r from-blue-600 to-violet-500" style={{ width: `${confidence}%` }} />
               </div>
               <div className="mt-4 flex justify-between text-xs">
-              <span className="text-slate-500">Current price {assetData.isLive ? "· live" : "· sample"}</span>
-                <strong className="text-slate-800">{formatPrice(assetData.currentPrice)}</strong>
+                <span className="text-slate-500">Current price {hasLivePrice ? "· live" : "· sample"}</span>
+                <strong className="text-slate-800">{formatPrice(currentPrice)}</strong>
               </div>
               <div className="mt-2 flex justify-between text-xs">
                 <span className="text-slate-500">Target price</span>
-                <strong className="text-slate-800">{formatPrice(assetData.forecastPrice)}</strong>
+                <strong className="text-slate-800">{formatPrice(forecastPrice)}</strong>
               </div>
               <div className="mt-2 flex justify-between text-xs">
                 <span className="text-slate-500">Stop loss <span className="text-slate-400">(1.5% risk)</span></span>
@@ -253,6 +286,7 @@ export default function PredictionPage({ assetData }) {
               </div>
             </div>
           </section>
+          {priceFeedError && <p className="text-[10px] leading-5 text-amber-700" role="status">Live price could not be refreshed. Showing the latest available price.</p>}
 
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm shadow-slate-900/[.025]">
             <div className="mb-4 flex items-center gap-2">

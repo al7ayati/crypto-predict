@@ -22,7 +22,7 @@ export default function BacktestPage({
   cumulativePnl = MOCK_CUMULATIVE_PNL,
   trades = MOCK_HISTORICAL_TRADES,
 }) {
-  const [timeframe, setTimeframe] = useState("90D");
+  const [timeframe, setTimeframe] = useState("60D");
   const [assetFilter, setAssetFilter] = useState("All");
   const [outcomeFilter, setOutcomeFilter] = useState("All");
   const chartData = useMemo(() => {
@@ -64,9 +64,7 @@ export default function BacktestPage({
               className="rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-[11px] font-semibold text-slate-700"
             >
               <option value="30D">30D</option>
-              <option value="90D">90D</option>
-              <option value="1Y">1Y</option>
-              <option value="All-time">All-time</option>
+              <option value="60D">60D</option>
             </select>
           </label>
           <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1.5 text-[10px] font-semibold text-amber-700 ring-1 ring-inset ring-amber-100">
@@ -119,7 +117,7 @@ export default function BacktestPage({
         <p className="mt-2 text-[10px] text-slate-400">
           {timeframe === "30D"
             ? "Showing the four latest available weekly samples; longer periods show all eight sample weeks."
-            : "Showing all eight available weekly samples; the selected period is limited by the demonstration dataset."}
+            : "Showing all eight available weekly samples (56 days); longer periods are not available in this demonstration dataset."}
         </p>
         <p className="mt-2 text-[10px] leading-5 text-slate-400">Simulated results do not guarantee future performance. Fees, slippage, and execution conditions may differ in live trading.</p>
       </section>

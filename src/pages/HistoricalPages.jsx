@@ -80,7 +80,8 @@ export default function HistoricalPage({
 
   const filteredLogs = useMemo(() => {
     const query = search.trim().toLowerCase();
-    return (liveLogs || historicalLogs)
+    const sourceLogs = historyState === "loading" ? [] : liveLogs || historicalLogs;
+    return sourceLogs
       .filter((log) => (!fromDate || log.date >= fromDate) && (!toDate || log.date <= toDate))
       .filter((log) => !query || [log.date, log.open, log.high, log.low, log.close, log.volume]
         .some((value) => String(value).toLowerCase().includes(query)))
@@ -100,7 +101,7 @@ export default function HistoricalPage({
           : leftValue - rightValue;
         return sortDirection === "asc" ? comparison : -comparison;
       });
-  }, [fromDate, historicalLogs, liveLogs, search, sortBy, sortDirection, toDate]);
+  }, [fromDate, historicalLogs, historyState, liveLogs, search, sortBy, sortDirection, toDate]);
   const pageCount = Math.max(1, Math.ceil(filteredLogs.length / PAGE_SIZE));
   const currentPage = Math.min(page, pageCount);
   const visibleLogs = filteredLogs.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
@@ -181,11 +182,11 @@ export default function HistoricalPage({
           <thead>
             <tr>
               <th aria-sort={sortBy === "date" ? sortDirection === "asc" ? "ascending" : "descending" : "none"}>{renderSortButton("date", "Record Date")}</th>
-              <th>{liveLogs ? "Price (USD)" : "Open (USD)"}</th>
+              <th>{liveLogs ? renderSortButton("price", "Price (USD)") : "Open (USD)"}</th>
               {!liveLogs && <th>High (USD)</th>}
               {!liveLogs && <th>Low (USD)</th>}
-              <th aria-sort={sortBy === "price" ? sortDirection === "asc" ? "ascending" : "descending" : "none"}>{renderSortButton("price", "Close / Price")}</th>
-              <th style={{ textAlign: "right" }} aria-sort={sortBy === "volume" ? sortDirection === "asc" ? "ascending" : "descending" : "none"}>{renderSortButton("volume", "Volume")}</th>
+              {!liveLogs && <th aria-sort={sortBy === "price" ? sortDirection === "asc" ? "ascending" : "descending" : "none"}>{renderSortButton("price", "Close / Price")}</th>}
+              {!liveLogs && <th style={{ textAlign: "right" }} aria-sort={sortBy === "volume" ? sortDirection === "asc" ? "ascending" : "descending" : "none"}>{renderSortButton("volume", "Volume")}</th>}
             </tr>
           </thead>
           <tbody>
@@ -195,12 +196,12 @@ export default function HistoricalPage({
                 <td>{formatPrice(liveLogs ? log.close : log.open)}</td>
                 {!liveLogs && <td style={{ color: "#0FA968" }}>{formatPrice(log.high)}</td>}
                 {!liveLogs && <td style={{ color: "#E14C4C" }}>{formatPrice(log.low)}</td>}
-                <td><strong>{formatPrice(log.close)}</strong></td>
-                <td style={{ textAlign: "right" }}>{log.volume}</td>
+                {!liveLogs && <td><strong>{formatPrice(log.close)}</strong></td>}
+                {!liveLogs && <td style={{ textAlign: "right" }}>{log.volume}</td>}
               </tr>
             ))}
             {visibleLogs.length === 0 && (
-              <tr><td colSpan={liveLogs ? 4 : 6} style={{ textAlign: "center" }}>{historyState === "loading" ? "Loading historical prices…" : "No records match these filters."}</td></tr>
+              <tr><td colSpan={liveLogs ? 2 : 6} style={{ textAlign: "center" }}>{historyState === "loading" ? "Loading historical prices…" : "No records match these filters."}</td></tr>
             )}
           </tbody>
         </table>

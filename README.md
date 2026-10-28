@@ -80,4 +80,18 @@ Run these commands from the repository root. Ensure `.env.local` is populated **
 - **Backtesting:** metrics, cumulative-return samples, and trades are demonstration data. The chart derives weekly P&L changes from cumulative samples; period and trade filters only operate over the data currently available. Results are not verified historical performance.
 - **Settings and administration:** not included until there are real user settings or secured backend operations to manage.
 
+## Market data and a real-time feed
+
+The current app uses CoinGecko REST requests, not a true streaming feed. Dashboard quotes and Prediction's selected quote refresh every 60 seconds; Historical Data requests a range once when the asset or dates change. The supported assets are BTC, ETH, SOL, XRP, and ADA, priced in USD. Prediction targets, confidence, signals, and Backtest metrics remain demonstration data.
+
+For a real streaming experience, keep Hosting as the static frontend and add one shared market-data service:
+
+1. Choose a provider that supports all five assets and confirm its quote currency, licensing, rate limits, and browser CORS policy. A crypto exchange WebSocket can provide fast ticker updates; CoinGecko REST is suitable for periodic snapshots and global market statistics.
+2. Normalize every provider message to a stable shape such as `{ symbol, priceUsd, change24hPct, volume24hUsd, source, timestamp }`. Keep provider IDs and symbol mappings in one module so dashboard, predictions, and historical views cannot drift apart.
+3. Open one WebSocket connection for the signed-in app, subscribe only to the five supported assets, and fan normalized updates through shared React state. Reconnect with backoff, validate prices, show the source and last-update time, and mark a quote stale when updates stop. Keep REST as the initial snapshot and reconnect fallback.
+4. If several clients need the same feed, relay provider updates from Cloud Run to Firebase Realtime Database and subscribe from the app with Firebase listeners. Use Realtime Database for the latest quote because it changes frequently; write aggregated one-minute or five-minute candles to Firestore only when historical storage is needed. Do not write every tick to Firestore.
+5. Keep historical candles separate from ticker updates. A ticker is not OHLC data. Use the provider's candle endpoint for open/high/low/close and volume, then calculate backtests from those candles with disclosed fees, slippage, and date bounds.
+
+Do not put a paid provider's secret API key in a `VITE_` variable: Vite bundles those values into browser JavaScript. Put secrets in Cloud Run or another trusted backend. Firebase Hosting alone serves the frontend; it does not keep a WebSocket connection or run a market-data worker.
+
 All forecasts are for educational purposes only and do not constitute financial advice.
