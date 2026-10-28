@@ -4,16 +4,6 @@
     "name": "BITCOIN",
     "currentPrice": 63000.00,
     "forecastPrice": 64200.50,
-    "mape": 0.24,
-    "modelVersion": "LGBM v1.0",
-    "series": [
-      { "label": "Sep 1", "actual": 58650, "forecast": null },
-      { "label": "Sep 5", "actual": 60200, "forecast": null },
-      { "label": "Sep 10", "actual": 61800, "forecast": null },
-      { "label": "Sep 15", "actual": 63000, "forecast": 63000 },
-      { "label": "Sep 20", "actual": null, "forecast": 63800 },
-      { "label": "Sep 25", "actual": null, "forecast": 64200.5 }
-    ],
     "forecastRows": [
       { "day": 1, "date": "Sep 16, 2026", "price": 63150.00, "change": 0.24, "confidence": 96 },
       { "day": 2, "date": "Sep 17, 2026", "price": 63400.20, "change": 0.40, "confidence": 94 },
@@ -31,16 +21,6 @@
     "name": "ETHEREUM",
     "currentPrice": 3450.00,
     "forecastPrice": 3620.00,
-    "mape": 0.31,
-    "modelVersion": "LGBM v1.0",
-    "series": [
-      { "label": "Sep 1", "actual": 3200, "forecast": null },
-      { "label": "Sep 5", "actual": 3320, "forecast": null },
-      { "label": "Sep 10", "actual": 3400, "forecast": null },
-      { "label": "Sep 15", "actual": 3450, "forecast": 3450 },
-      { "label": "Sep 20", "actual": null, "forecast": 3540 },
-      { "label": "Sep 25", "actual": null, "forecast": 3620 }
-    ],
     "forecastRows": [
       { "day": 1, "date": "Sep 16, 2026", "price": 3470.00, "change": 0.58, "confidence": 95 },
       { "day": 2, "date": "Sep 17, 2026", "price": 3495.50, "change": 0.73, "confidence": 93 },
@@ -56,16 +36,6 @@
     "name": "CARDANO",
     "currentPrice": 0.45,
     "forecastPrice": 0.52,
-    "mape": 0.85,
-    "modelVersion": "LGBM v1.0",
-    "series": [
-      { "label": "Sep 1", "actual": 0.39, "forecast": null },
-      { "label": "Sep 5", "actual": 0.41, "forecast": null },
-      { "label": "Sep 10", "actual": 0.43, "forecast": null },
-      { "label": "Sep 15", "actual": 0.45, "forecast": 0.45 },
-      { "label": "Sep 20", "actual": null, "forecast": 0.48 },
-      { "label": "Sep 25", "actual": null, "forecast": 0.52 }
-    ],
     "forecastRows": [
       { "day": 1, "date": "Sep 16, 2026", "price": 0.455, "change": 1.11, "confidence": 92 },
       { "day": 2, "date": "Sep 17, 2026", "price": 0.462, "change": 1.53, "confidence": 88 },
@@ -81,16 +51,6 @@
     "name": "SOLANA",
     "currentPrice": 142.37,
     "forecastPrice": 147.85,
-    "mape": 0.62,
-    "modelVersion": "LGBM v1.0",
-    "series": [
-      { "label": "Sep 1", "actual": 128.4, "forecast": null },
-      { "label": "Sep 5", "actual": 132.1, "forecast": null },
-      { "label": "Sep 10", "actual": 137.6, "forecast": null },
-      { "label": "Sep 15", "actual": 142.37, "forecast": 142.37 },
-      { "label": "Sep 20", "actual": null, "forecast": 145.1 },
-      { "label": "Sep 25", "actual": null, "forecast": 147.85 }
-    ],
     "forecastRows": [
       { "day": 1, "date": "Sep 16, 2026", "price": 143.12, "change": 0.53, "confidence": 89 },
       { "day": 2, "date": "Sep 17, 2026", "price": 144.05, "change": 0.65, "confidence": 87 },
@@ -108,16 +68,6 @@
     "name": "XRP",
     "currentPrice": 0.6241,
     "forecastPrice": 0.6492,
-    "mape": 0.48,
-    "modelVersion": "LGBM v1.0",
-    "series": [
-      { "label": "Sep 1", "actual": 0.572, "forecast": null },
-      { "label": "Sep 5", "actual": 0.586, "forecast": null },
-      { "label": "Sep 10", "actual": 0.603, "forecast": null },
-      { "label": "Sep 15", "actual": 0.6241, "forecast": 0.6241 },
-      { "label": "Sep 20", "actual": null, "forecast": 0.6367 },
-      { "label": "Sep 25", "actual": null, "forecast": 0.6492 }
-    ],
     "forecastRows": [
       { "day": 1, "date": "Sep 16, 2026", "price": 0.6272, "change": 0.50, "confidence": 91 },
       { "day": 2, "date": "Sep 17, 2026", "price": 0.6318, "change": 0.73, "confidence": 88 },
