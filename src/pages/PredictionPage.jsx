@@ -1,315 +1,131 @@
 import React, { useEffect, useMemo, useState } from "react";
-import {
-  CartesianGrid,
-  Line,
-  LineChart,
-  ReferenceLine,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-  Area,
-  ComposedChart,
-} from "recharts";
-import { ArrowDownRight, ArrowUpRight, BrainCircuit, CheckCircle2, Clock3, Sparkles } from "lucide-react";
-import { MOCK_PREDICTION_CHARTS } from "../data/mockMarketData";
+import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { COINGECKO_ATTRIBUTION_URL, fetchPriceHistory, toDailyPrices } from "../services/marketData";
 
-const TIMEFRAMES = ["1H", "24H", "7D"];
-const COINGECKO_IDS = { BTC: "bitcoin", ETH: "ethereum", SOL: "solana", XRP: "ripple", ADA: "cardano" };
-const FACTORS = [
-  "Trading volume increased over the latest sample window",
-  "Short-term momentum remains above the recent average",
-  "Social sentiment is positive across tracked sources",
-];
+const HORIZONS = [{ label: "24H", days: 1 }, { label: "7D", days: 7 }, { label: "30D", days: 30 }];
 const formatPrice = (value) => new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  minimumFractionDigits: value < 1 ? 4 : 2,
+  style: "currency", currency: "USD", minimumFractionDigits: value < 1 ? 4 : 2,
   maximumFractionDigits: value < 1 ? 4 : 2,
 }).format(value);
 
-function addIndicators(points) {
-  const actualPoints = points.filter((point) => point.actual !== null);
-  const ema = (values, period) => {
-    const multiplier = 2 / (period + 1);
-    return values.reduce((result, value, index) => {
-      result.push(index === 0 ? value : value * multiplier + result[index - 1] * (1 - multiplier));
-      return result;
-    }, []);
-  };
-  const values = actualPoints.map((point) => point.actual);
-  const ema20 = ema(values, 20);
-  const ema50 = ema(values, 50);
-  const actualIndexByLabel = new Map(actualPoints.map((point, index) => [point.label, index]));
-
-  return points.map((point) => {
-    const index = actualIndexByLabel.get(point.label);
-    if (index === undefined) {
-      return { ...point, ema20: null, ema50: null, bollingerUpper: null, bollingerLower: null, rsi: null };
-    }
-
-    const windowValues = values.slice(Math.max(0, index - 19), index + 1);
-    const average = windowValues.reduce((sum, value) => sum + value, 0) / windowValues.length;
-    const deviation = Math.sqrt(windowValues.reduce((sum, value) => sum + (value - average) ** 2, 0) / windowValues.length);
-    const rsiWindow = values.slice(Math.max(0, index - 13), index + 1);
-    const changes = rsiWindow.slice(1).map((value, changeIndex) => value - rsiWindow[changeIndex]);
+function calculateIndicators(rows) {
+  return rows.map((point, index) => {
+    const history20 = rows.slice(Math.max(0, index - 19), index + 1).map((row) => row.actual);
+    const mean20 = history20.reduce((sum, value) => sum + value, 0) / history20.length;
+    const std20 = Math.sqrt(history20.reduce((sum, value) => sum + (value - mean20) ** 2, 0) / history20.length);
+    const changes = rows.slice(Math.max(1, index - 13), index + 1).map((row, offset) => row.actual - rows[Math.max(1, index - 13) + offset - 1].actual);
     const gains = changes.reduce((sum, change) => sum + Math.max(change, 0), 0);
     const losses = changes.reduce((sum, change) => sum + Math.max(-change, 0), 0);
-    const rsi = changes.length === 0
-      ? null
-      : losses === 0
-        ? 100
-        : 100 - 100 / (1 + gains / losses);
-
-    return {
-      ...point,
-      ema20: ema20[index],
-      ema50: ema50[index],
-      bollingerUpper: average + deviation * 2,
-      bollingerLower: average - deviation * 2,
-      rsi,
+    const rsi = changes.length ? losses === 0 ? 100 : 100 - 100 / (1 + gains / losses) : null;
+    const ema = (period) => {
+      const multiplier = 2 / (period + 1);
+      return rows.slice(0, index + 1).reduce((value, row, rowIndex) => rowIndex === 0 ? row.actual : row.actual * multiplier + value * (1 - multiplier), 0);
     };
+    return { ...point, ema20: ema(20), ema50: ema(50), bollingerUpper: mean20 + 2 * std20, bollingerLower: mean20 - 2 * std20, rsi };
   });
 }
 
+function formatHistoryLabel(date) {
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(new Date(`${date}T00:00:00Z`));
+}
+
 export default function PredictionPage({ assetData }) {
-  const [timeframe, setTimeframe] = useState("24H");
+  const [horizon, setHorizon] = useState(HORIZONS[1]);
   const [visibleIndicators, setVisibleIndicators] = useState([]);
-  const [livePrice, setLivePrice] = useState(null);
-  const [priceFeedError, setPriceFeedError] = useState(false);
+  const [observations, setObservations] = useState([]);
+  const [state, setState] = useState("loading");
+  const [error, setError] = useState("");
+  const [fetchedAt, setFetchedAt] = useState(null);
+
+  // CHANGEPOINT: This baseline derives only from CoinGecko daily prices; it is not a learned forecasting model.
   useEffect(() => {
     const controller = new AbortController();
-    const coinId = COINGECKO_IDS[assetData.symbol];
-    if (!coinId) return undefined;
-    setLivePrice(null);
-    setPriceFeedError(false);
-    const loadPrice = async () => {
-      try {
-        const params = new URLSearchParams({ ids: coinId, vs_currencies: "usd" });
-        const response = await fetch(`https://api.coingecko.com/api/v3/simple/price?${params}`, { signal: controller.signal, headers: { accept: "application/json" } });
-        if (!response.ok) throw new Error(`Market provider returned HTTP ${response.status}`);
-        const result = await response.json();
-        const price = result?.[coinId]?.usd;
-        if (typeof price !== "number" || !Number.isFinite(price)) throw new Error("Market provider returned an invalid price.");
-        setLivePrice(price);
-        setPriceFeedError(false);
-      } catch (error) {
-        if (error.name !== "AbortError") setPriceFeedError(true);
-      }
-    };
-    loadPrice();
-    const intervalId = window.setInterval(loadPrice, 60_000);
-    return () => {
-      controller.abort();
-      window.clearInterval(intervalId);
-    };
+    const end = new Date().toISOString().slice(0, 10);
+    const start = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
+    setObservations([]);
+    setState("loading");
+    setError("");
+    fetchPriceHistory(assetData.symbol, start, end, controller.signal)
+      .then((rows) => {
+        const daily = toDailyPrices(rows);
+        if (daily.length < 8) throw new Error("At least eight daily price observations are required for the baseline calculation.");
+        setObservations(daily);
+        setFetchedAt(new Date().toISOString());
+        setState("ready");
+      })
+      .catch((fetchError) => {
+        if (fetchError.name === "AbortError") return;
+        setState("error");
+        setError(fetchError.message || "Unable to load price history from CoinGecko.");
+      });
+    return () => controller.abort();
   }, [assetData.symbol]);
-  const currentPrice = livePrice ?? assetData.currentPrice;
-  const forecastPrice = currentPrice * (assetData.forecastPrice / assetData.currentPrice);
-  const hasLivePrice = livePrice !== null || assetData.isLive;
-  const chartData = useMemo(() => addIndicators(MOCK_PREDICTION_CHARTS[timeframe].map((point) => ({
-    label: point.label,
-    actual: point.actual === null ? null : currentPrice * (1 + point.actual),
-    forecast: point.forecast === null ? null : currentPrice * (1 + point.forecast),
-  }))), [currentPrice, timeframe]);
-  const expectedChange = ((forecastPrice - currentPrice) / currentPrice) * 100;
-  const signal = expectedChange > 0.5 ? "BUY" : expectedChange < -0.5 ? "SELL" : "HOLD";
-  const stopLoss = currentPrice * (signal === "SELL" ? 1.015 : 0.985);
-  const confidence = assetData.forecastRows[0]?.confidence || 82;
-  const signalStyle = signal === "BUY"
-    ? "bg-emerald-50 text-emerald-700"
-    : signal === "SELL"
-      ? "bg-rose-50 text-rose-700"
-      : "bg-amber-50 text-amber-700";
-  const toggleIndicator = (indicator) => {
-    setVisibleIndicators((current) => current.includes(indicator)
+
+  const analysis = useMemo(() => {
+    if (!observations.length) return null;
+    const actualRows = observations.map((point, index) => ({
+      label: formatHistoryLabel(point.date), timestamp: point.timestamp, date: point.date, actual: point.price,
+      forecast: null,
+    }));
+    const last = observations.at(-1);
+    const dailyLogReturns = observations.slice(-8).slice(1).map((point, index) => Math.log(point.price / observations.slice(-8)[index].price));
+    const meanDailyLogReturn = dailyLogReturns.reduce((sum, value) => sum + value, 0) / dailyLogReturns.length;
+    const futureRows = Array.from({ length: horizon.days }, (_, index) => {
+      const day = index + 1;
+      return { label: `+${day}d`, timestamp: last.timestamp + day * 86_400_000, actual: null, forecast: last.price * Math.exp(meanDailyLogReturn * day) };
+    });
+    actualRows.at(-1).forecast = last.price;
+    const indicators = calculateIndicators(actualRows);
+    const chart = indicators.concat(futureRows.map((point) => ({ ...point, ema20: null, ema50: null, bollingerUpper: null, bollingerLower: null, rsi: null })));
+    const meanReturnPct = (Math.exp(meanDailyLogReturn) - 1) * 100;
+    return { chart, lastPrice: assetData.currentPrice ?? last.price, historyPrice: last.price, rsi: indicators.at(-1)?.rsi, meanReturnPct,
+      targetPrice: last.price * Math.exp(meanDailyLogReturn * horizon.days), estimatedChangePct: (Math.exp(meanDailyLogReturn * horizon.days) - 1) * 100,
+      observationDate: last.date };
+  }, [assetData.currentPrice, horizon.days, observations]);
+
+  const toggleIndicator = (indicator) => setVisibleIndicators((current) => current.includes(indicator)
     ? current.filter((value) => value !== indicator)
     : [...current, indicator]);
-  };
 
-  return (
-    <div className="space-y-6">
-      <section className="rounded-2xl bg-gradient-to-br from-navy-950 via-navy-900 to-blue-950 p-5 text-white shadow-lg shadow-blue-950/10 sm:p-7">
-        <div className="flex flex-wrap items-start justify-between gap-5">
-          <div>
-            <span className="inline-flex items-center gap-2 rounded-full border border-blue-300/20 bg-white/[.06] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[.14em] text-blue-100">
-              <Sparkles size={13} /> AI price outlook
-            </span>
-            <h2 className="mt-4 text-2xl font-bold tracking-tight sm:text-3xl">{assetData.name} Forecast</h2>
-            <p className="mt-2 max-w-xl text-sm leading-6 text-blue-100/65">
-              The latest market price anchors this illustrative sample projection. Forecasts and signals are demonstration data, not a live model output.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            <div className="flex flex-col gap-1.5">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-blue-100/60">Timeframe</span>
-              <div className="flex rounded-xl border border-white/15 bg-white/10 p-1" role="group" aria-label="Prediction timeframe">
-                {TIMEFRAMES.map((option) => (
-                  <button
-                    key={option}
-                    type="button"
-                    onClick={() => setTimeframe(option)}
-                    aria-pressed={timeframe === option}
-                    className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${timeframe === option ? "bg-white text-navy-950 shadow-sm" : "text-blue-100/75 hover:text-white"}`}
-                  >
-                    {option}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
+  const dataLine = (dataKey, name, color, dashed = false) => <Line type="monotone" dataKey={dataKey} name={name} stroke={color} strokeWidth={1.5} strokeDasharray={dashed ? "5 4" : undefined} dot={false} connectNulls />;
+
+  return <div className="space-y-6">
+    <section className="rounded-2xl bg-gradient-to-br from-navy-950 via-navy-900 to-blue-950 p-5 text-white shadow-lg shadow-blue-950/10 sm:p-7">
+      <span className="inline-flex rounded-full border border-blue-300/20 bg-white/[.06] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[.14em] text-blue-100">Historical trend baseline</span>
+      <h2 className="mt-4 text-2xl font-bold tracking-tight sm:text-3xl">{assetData.name} scenario</h2>
+      <p className="mt-2 max-w-2xl text-sm leading-6 text-blue-100/70">A transparent extrapolation of the mean daily log return from the latest seven daily observations. The projected line is a calculation from past data, not a fact, AI output, or trading advice.</p>
+      <div className="mt-5 flex flex-wrap items-center gap-3">
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-blue-100/60">Projection horizon</span>
+        <div className="flex rounded-xl border border-white/15 bg-white/10 p-1" role="group" aria-label="Projection horizon">
+          {HORIZONS.map((option) => <button key={option.label} type="button" onClick={() => setHorizon(option)} aria-pressed={horizon.label === option.label} className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${horizon.label === option.label ? "bg-white text-navy-950" : "text-blue-100/75 hover:text-white"}`}>{option.label}</button>)}
         </div>
-      </section>
-
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1.7fr)_minmax(270px,.8fr)]">
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm shadow-slate-900/[.025] sm:p-6">
-          <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h3 className="text-base font-bold text-slate-900">Price forecast</h3>
-              <p className="mt-1 text-xs text-slate-500">{hasLivePrice ? "Live price anchor with illustrative sample projection" : "Sample price anchor and illustrative projection"} · {timeframe}</p>
-            </div>
-            <div className="flex items-center gap-4 text-[10px] font-medium text-slate-500">
-              <span className="inline-flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-blue-600" />Sample history</span>
-              <span className="inline-flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-violet-500" />Sample projection</span>
-            </div>
-          </div>
-          <div className="h-[290px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData} margin={{ top: 10, right: 12, left: 3, bottom: 3 }}>
-                <CartesianGrid stroke="#edf1f7" strokeDasharray="4 5" vertical={false} />
-                <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: "#8290a5" }} />
-                <YAxis
-                  domain={["auto", "auto"]}
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fontSize: 10, fill: "#8290a5" }}
-                  tickFormatter={(value) => value < 1
-                    ? `$${Number(value).toFixed(4)}`
-                    : `$${Number(value).toLocaleString("en-US", { notation: "compact", maximumFractionDigits: 1 })}`}
-                  width={55}
-                />
-                <Tooltip formatter={(value) => formatPrice(value)} contentStyle={{ borderRadius: 12, borderColor: "#e5ebf4", fontSize: 12 }} />
-                <ReferenceLine x="Now" stroke="#64748b" strokeDasharray="4 4" label={{ value: "NOW", position: "insideTopRight", fill: "#64748b", fontSize: 9, fontWeight: 700 }} />
-                {visibleIndicators.includes("bollinger") && (
-                  <>
-                    <Line type="monotone" dataKey="bollingerUpper" name="Bollinger upper" stroke="#c4b5fd" strokeWidth={1.5} dot={false} connectNulls />
-                    <Line type="monotone" dataKey="bollingerLower" name="Bollinger lower" stroke="#c4b5fd" strokeWidth={1.5} dot={false} connectNulls />
-                  </>
-                )}
-                <Line type="monotone" dataKey="actual" name="Sample history" stroke="#2563eb" strokeWidth={2.5} dot={{ r: 3, fill: "#2563eb", strokeWidth: 0 }} activeDot={{ r: 5 }} connectNulls />
-                <Line type="monotone" dataKey="forecast" name="Sample projection" stroke="#8b5cf6" strokeWidth={2.5} strokeDasharray="6 5" dot={{ r: 3, fill: "#8b5cf6", strokeWidth: 0 }} connectNulls />
-                {visibleIndicators.includes("ema20") && <Line type="monotone" dataKey="ema20" name="EMA 20" stroke="#f59e0b" strokeWidth={1.5} dot={false} connectNulls />}
-                {visibleIndicators.includes("ema50") && <Line type="monotone" dataKey="ema50" name="EMA 50" stroke="#10b981" strokeWidth={1.5} dot={false} connectNulls />}
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="mt-4 flex flex-wrap items-center gap-2" role="group" aria-label="Toggle technical indicators">
-            <span className="mr-1 text-[10px] font-semibold text-slate-500">Indicators</span>
-            {[
-              ["ema20", "EMA 20"],
-              ["ema50", "EMA 50"],
-              ["bollinger", "Bollinger Bands"],
-              ["rsi", "RSI"],
-            ].map(([key, label]) => {
-              const active = visibleIndicators.includes(key);
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  aria-pressed={active}
-                  onClick={() => toggleIndicator(key)}
-                  className={`rounded-lg border px-2.5 py-1.5 text-[10px] font-semibold transition ${active ? "border-blue-200 bg-blue-50 text-blue-700" : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"}`}
-                >
-                  {label}
-                </button>
-              );
-            })}
-          </div>
-          {visibleIndicators.includes("rsi") && (
-            <div className="mt-4 border-t border-slate-100 pt-4">
-              <div className="mb-2 flex items-center justify-between">
-                <span className="text-[10px] font-semibold text-slate-600">Relative Strength Index (RSI)</span>
-                <span className="text-[10px] text-slate-400">Sample-based · 0–100</span>
-              </div>
-              <div className="h-[110px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <ComposedChart data={chartData} margin={{ top: 4, right: 12, left: 3, bottom: 0 }}>
-                    <CartesianGrid stroke="#edf1f7" strokeDasharray="4 5" vertical={false} />
-                    <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: "#8290a5" }} />
-                    <YAxis domain={[0, 100]} ticks={[0, 30, 70, 100]} axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: "#8290a5" }} width={30} />
-                    <Tooltip formatter={(value) => [Number(value).toFixed(1), "RSI"]} contentStyle={{ borderRadius: 12, borderColor: "#e5ebf4", fontSize: 11 }} />
-                    <ReferenceLine y={30} stroke="#cbd5e1" strokeDasharray="3 4" />
-                    <ReferenceLine y={70} stroke="#cbd5e1" strokeDasharray="3 4" />
-                    <Area type="monotone" dataKey="rsi" name="RSI" stroke="#f59e0b" fill="#fef3c7" fillOpacity={0.45} connectNulls />
-                  </ComposedChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          )}
-          <p className="mt-3 text-[10px] leading-5 text-slate-400">Sample model output only. Forecasts are illustrative and are not financial advice.</p>
-        </section>
-
-        <aside className="space-y-5">
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm shadow-slate-900/[.025]">
-            <div className="flex items-start justify-between">
-              <div>
-                <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[.14em] text-slate-400"><BrainCircuit size={14} /> AI analysis &amp; signal</span>
-                <div className="mt-4 flex items-center gap-2">
-                  <span className={`rounded-lg px-3 py-1.5 text-sm font-extrabold tracking-wider ${signalStyle}`}>{signal}</span>
-                  <span className={`inline-flex items-center gap-1 text-xs font-semibold ${expectedChange >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
-                    {expectedChange >= 0 ? <ArrowUpRight size={15} /> : <ArrowDownRight size={15} />}
-                    {expectedChange >= 0 ? "+" : ""}{expectedChange.toFixed(2)}%
-                  </span>
-                </div>
-              </div>
-              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-700"><Sparkles size={18} /></span>
-            </div>
-            <div className="mt-5 border-t border-slate-100 pt-4">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-500">Confidence level</span>
-                <strong className="text-slate-800">{confidence}%</strong>
-              </div>
-              <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
-                <div className="h-full rounded-full bg-gradient-to-r from-blue-600 to-violet-500" style={{ width: `${confidence}%` }} />
-              </div>
-              <div className="mt-4 flex justify-between text-xs">
-                <span className="text-slate-500">Current price {hasLivePrice ? "· live" : "· sample"}</span>
-                <strong className="text-slate-800">{formatPrice(currentPrice)}</strong>
-              </div>
-              <div className="mt-2 flex justify-between text-xs">
-                <span className="text-slate-500">Target price</span>
-                <strong className="text-slate-800">{formatPrice(forecastPrice)}</strong>
-              </div>
-              <div className="mt-2 flex justify-between text-xs">
-                <span className="text-slate-500">Stop loss <span className="text-slate-400">(1.5% risk)</span></span>
-                <strong className="text-rose-700">{formatPrice(stopLoss)}</strong>
-              </div>
-            </div>
-          </section>
-          {priceFeedError && <p className="text-[10px] leading-5 text-amber-700" role="status">Live price could not be refreshed. Showing the latest available price.</p>}
-
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm shadow-slate-900/[.025]">
-            <div className="mb-4 flex items-center gap-2">
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-50 text-violet-600"><CheckCircle2 size={16} /></span>
-              <div>
-                <h3 className="text-sm font-bold text-slate-900">Key factors</h3>
-                <p className="text-[10px] text-slate-400">Signals contributing to this outlook</p>
-              </div>
-            </div>
-            <ul className="space-y-3">
-              {FACTORS.map((factor) => (
-                <li key={factor} className="flex gap-2.5 text-xs leading-5 text-slate-600">
-                  <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-violet-500" />
-                  {factor}
-                </li>
-              ))}
-            </ul>
-            <div className="mt-4 flex items-center gap-1.5 border-t border-slate-100 pt-3 text-[10px] text-slate-400">
-              <Clock3 size={12} /> Generated from a stored sample · {timeframe}
-            </div>
-          </section>
-        </aside>
       </div>
-    </div>
-  );
+    </section>
+
+    {state === "loading" && <p className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-500">Loading CoinGecko price history…</p>}
+    {state === "error" && <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-800">{error} No forecast is shown without source data.</p>}
+    {state === "ready" && analysis && <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1.7fr)_minmax(270px,.8fr)]">
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <div className="mb-5 flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-base font-bold text-slate-900">Observed prices and baseline</h3><p className="mt-1 text-xs text-slate-500">One daily observation per UTC date · {assetData.symbol} / USD</p></div><div className="flex items-center gap-4 text-[10px] text-slate-500"><span className="inline-flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-blue-600" />Observed history</span><span className="inline-flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-violet-500" />Trend baseline</span></div></div>
+        <div className="h-[290px] w-full"><ResponsiveContainer width="100%" height="100%"><LineChart data={analysis.chart} margin={{ top: 10, right: 12, left: 3, bottom: 3 }}>
+          <CartesianGrid stroke="#edf1f7" strokeDasharray="4 5" vertical={false} /><XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: "#8290a5" }} minTickGap={24} /><YAxis domain={["auto", "auto"]} axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: "#8290a5" }} tickFormatter={(value) => value < 1 ? `$${Number(value).toFixed(4)}` : `$${Number(value).toLocaleString("en-US", { notation: "compact", maximumFractionDigits: 1 })}`} width={55} /><Tooltip formatter={(value) => formatPrice(value)} contentStyle={{ borderRadius: 12, borderColor: "#e5ebf4", fontSize: 12 }} /><ReferenceLine x={analysis.chart[Math.max(0, analysis.chart.length - horizon.days - 1)]?.label} stroke="#64748b" strokeDasharray="4 4" />
+          {visibleIndicators.includes("bollinger") && <>{dataLine("bollingerUpper", "20-day upper band", "#c4b5fd")}{dataLine("bollingerLower", "20-day lower band", "#c4b5fd")}</>}{dataLine("actual", "Observed price", "#2563eb")}{dataLine("forecast", "Trend baseline", "#8b5cf6", true)}{visibleIndicators.includes("ema20") && dataLine("ema20", "EMA 20", "#f59e0b")}{visibleIndicators.includes("ema50") && dataLine("ema50", "EMA 50", "#10b981")}
+        </LineChart></ResponsiveContainer></div>
+        <div className="mt-4 flex flex-wrap items-center gap-2" role="group" aria-label="Toggle technical indicators"><span className="mr-1 text-[10px] font-semibold text-slate-500">Indicators</span>{[["ema20", "EMA 20"], ["ema50", "EMA 50"], ["bollinger", "20-day bands"], ["rsi", "RSI"]].map(([key, label]) => <button key={key} type="button" aria-pressed={visibleIndicators.includes(key)} onClick={() => toggleIndicator(key)} className={`rounded-lg border px-2.5 py-1.5 text-[10px] font-semibold ${visibleIndicators.includes(key) ? "border-blue-200 bg-blue-50 text-blue-700" : "border-slate-200 text-slate-500 hover:bg-slate-50"}`}>{label}</button>)}</div>
+        {visibleIndicators.includes("rsi") && <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-4 text-xs"><span className="text-slate-500">14-observation RSI</span><strong className="text-slate-800">{analysis.rsi === null ? "Insufficient history" : analysis.rsi.toFixed(1)}</strong></div>}
+        <p className="mt-3 text-[10px] leading-5 text-slate-400">Source: CoinGecko · latest daily observation {analysis.observationDate} UTC · queried {fetchedAt ? new Date(fetchedAt).toLocaleString() : "—"}.</p>
+      </section>
+      <aside className="space-y-5">
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h3 className="text-sm font-bold text-slate-900">Trend calculation</h3><div className="mt-4 space-y-3 border-t border-slate-100 pt-4 text-xs">
+          <div className="flex justify-between gap-3"><span className="text-slate-500">Latest market quote</span><strong>{formatPrice(analysis.lastPrice)}</strong></div>
+          <p className="text-right text-[10px] text-slate-400">CoinGecko last queried {assetData.marketUpdatedAt ? new Date(assetData.marketUpdatedAt).toLocaleString() : "—"}{assetData.marketStatus === "stale" ? " · quote may be stale" : ""}</p>
+          <div className="flex justify-between gap-3"><span className="text-slate-500">Latest historical observation</span><strong>{formatPrice(analysis.historyPrice)}</strong></div>
+          <div className="flex justify-between gap-3"><span className="text-slate-500">{horizon.label} baseline endpoint</span><strong>{formatPrice(analysis.targetPrice)}</strong></div>
+          <div className="flex justify-between gap-3"><span className="text-slate-500">Implied change</span><strong className={analysis.estimatedChangePct >= 0 ? "text-emerald-700" : "text-rose-700"}>{analysis.estimatedChangePct >= 0 ? "+" : ""}{analysis.estimatedChangePct.toFixed(2)}%</strong></div>
+          <div className="flex justify-between gap-3"><span className="text-slate-500">Mean daily log return (7D)</span><strong>{analysis.meanReturnPct >= 0 ? "+" : ""}{analysis.meanReturnPct.toFixed(3)}%</strong></div>
+        </div><p className="mt-4 text-[10px] leading-5 text-slate-400">This baseline compounds the observed seven-day average return. It does not estimate probability or confidence.</p></section>
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h3 className="text-sm font-bold text-slate-900">Data provenance</h3><p className="mt-2 text-xs leading-5 text-slate-500">Prices are aggregated by CoinGecko from supported market sources. Historical prices can differ from an individual exchange. No sentiment inputs or unpublished model data are used.</p><a href={COINGECKO_ATTRIBUTION_URL} target="_blank" rel="noreferrer" className="mt-3 inline-block text-[10px] font-semibold text-slate-500 underline underline-offset-2">CoinGecko API and methodology</a></section>
+      </aside>
+    </div>}
+  </div>;
 }

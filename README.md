@@ -1,46 +1,34 @@
 # Crypto Predict
 
-Crypto Predict is a React and Vite cryptocurrency analytics demo. It includes Firebase email/password and Google authentication, a live market dashboard, stored historical samples, forecast visualizations, a backtesting summary, and CSV export.
+Crypto Predict is a React/Vite cryptocurrency analytics app hosted as a static single-page app on Firebase Hosting. It uses Firebase Authentication and the keyless CoinGecko Public API for market and historical price data. It does not require a CoinGecko account, API key, subscription, Cloud Run relay, or Firebase Realtime Database.
 
-> **Data and feature notice:** The dashboard requests market prices and aggregate market statistics from CoinGecko and refreshes them every 60 seconds when the public API is available. Prediction views use the latest fetched price as an anchor, while forecast values, AI signals, and backtest metrics remain demonstration samples—not a live model pipeline or independently verified performance. Historical Data requests provider price observations for the selected asset and date range; if unavailable, it clearly falls back to labeled sample OHLC rows. CoinGecko's public API may apply rate limits.
+## Data integrity
 
-## Requirements
-
-- Node.js 22 LTS or a compatible supported Node.js version
-- npm
-- A Firebase project with a Web app registered
+- The Dashboard gets current quotes, 24-hour change/volume, market caps, provider timestamps, and 7-day sparklines for BTC, ETH, SOL, XRP, and ADA in one batched CoinGecko `/coins/markets` request.
+- Quotes are polled once per minute while the user is signed in and the app tab is visible. A manual refresh is available. CoinGecko controls the underlying data freshness; polling does not make it a second-by-second feed.
+- The public API rate limit varies by conditions. The client queues its API requests at least 13 seconds apart, but other users sharing an IP can still affect the available quota. A 429 is shown to the user and the app waits for the next scheduled poll or manual refresh.
+- The Dashboard labels the five-asset aggregate separately from global-market totals and shows CoinGecko attribution, local query time, and the newest provider timestamp when returned.
+- Historical Data uses CoinGecko `/coins/{id}/market_chart/range`. It displays observed prices by UTC date, collapsed to the final returned observation for that date. This endpoint's price series is not OHLC, and the app does not invent open/high/low/volume values.
+- Predictions shows the actual price series plus a clearly labeled baseline that compounds the mean daily log return from the latest seven daily observations. This is a mathematical scenario, not a factual future price, learned model, confidence score, AI signal, or trading recommendation.
+- Backtest fetches actual CoinGecko price observations for each supported asset and replays a long-only 7-observation SMA rule. It reports hypothetical portfolio results with an explicit modeled 0.1% fee per fill. It does not model exchange execution, spreads, slippage, taxes, or intraday OHLC candles, and results are not actual trading performance.
+- If a provider request fails, the app shows an error or the last successful quote with a stale label. It never replaces missing live prices with mock values.
 
 ## Local setup
 
-1. Clone the repository and open its root folder.
-2. Copy the environment template:
-   ```bash
-   cp .env.example .env.local
-   ```
-3. Open `.env.local` and replace the placeholder values with the configuration from **Firebase Console → Project settings → General → Your apps → Web app**.
-4. Install the locked dependencies and run the development server:
+Requirements: Node.js 22 (or compatible supported version), npm, and a Firebase project with a Web App and Authentication enabled.
+
+1. Copy `.env.example` to `.env.local` and enter the Firebase Web App config from Firebase Console → Project settings → General → Your apps.
+2. Enable Email/Password and (optionally) Google sign-in in Firebase Authentication. Add local and production hostnames under Authorized domains.
+3. Install and start:
+
    ```bash
    npm ci
    npm run dev
    ```
-5. Open the local URL printed by Vite, usually `http://localhost:5173`.
 
-Vite reads `.env.local` from the repository root. Restart the development server after changing environment variables. Never commit `.env.local`, service-account JSON, or Firebase Admin credentials.
+Vite reads `.env.local` from the project root. These `VITE_FIREBASE_*` values are browser configuration, not server secrets. There is no CoinGecko key in the app.
 
-## Configure Firebase Authentication
-
-1. Open the [Firebase Console](https://console.firebase.google.com/) and select `crypto-predict-app`, or update `.firebaserc` if using another project.
-2. Open **Build → Authentication → Sign-in method** and enable **Email/Password**.
-3. Enable **Google** as a sign-in provider if you want to use Google authentication.
-4. Under **Authentication → Settings → Authorized domains**, add the local and production hostnames that you use. Do not include a path or protocol.
-5. Confirm the environment values match the registered Firebase Web app.
-6. Start the app and test email sign-up with an email address you can access, sign out, sign in again, and request a password reset. Check the inbox and spam folder for the password reset email. Test Google sign-in from an authorized domain.
-
-The username is saved in the Firebase Authentication profile as `displayName`. Passwords are handled by Firebase Authentication and are not saved by this frontend to a custom database.
-
-## Build and preview
-
-Run the same build used for deployment:
+## Build and deploy
 
 ```bash
 npm ci
@@ -48,50 +36,26 @@ npm run build
 npm run preview
 ```
 
-Resolve every build error before deploying. The repository's GitHub Actions workflow also runs `npm ci` and `npm run build` for pushes and pull requests.
-
-## Deploy to Firebase Hosting
-
-Install the Firebase CLI and authenticate with the account that has access to the target Firebase project:
+To publish the static site to the Firebase project selected by `.firebaserc`:
 
 ```bash
-npm install -g firebase-tools
 firebase login
-firebase projects:list
 firebase use crypto-predict-app
-npm ci
 npm run build
 firebase deploy --only hosting
 ```
 
-Run these commands from the repository root. Ensure `.env.local` is populated **before** `npm run build`; the compiled `dist` folder contains the client-side Firebase configuration. After deployment, open the Hosting URL and repeat the authentication and page smoke tests. Firebase Hosting is configured to rewrite routes to `index.html` for this single-page application.
+Populate the Firebase values before building. Firebase Hosting rewrites app routes to `index.html`.
 
-## Security notes
+## Code map and maintenance
 
-- Firebase Web app configuration is client-side configuration, not a service-account secret. Protect the project with the correct Authentication settings, API restrictions where appropriate, and Firebase Security Rules for any Firebase data services.
-- Never put Firebase Admin SDK credentials, service-account private keys, or other server secrets in Vite variables prefixed with `VITE_`; those values are bundled into browser code.
-- If adding protected admin actions or a real model-training pipeline, implement them in a secured backend, verify Firebase ID tokens on the server, and enforce admin privileges with server-side authorization. A hidden button in a React app is not an access-control boundary.
+See [DEVELOPER_HANDOFF.md](./DEVELOPER_HANDOFF.md) for page behavior, data contracts, rate-limit behavior, source links, forecast/backtest assumptions, and change points. The core provider adapter lives in `src/services/marketData.js`; search for `ARCHITECTURE:` and `CHANGEPOINT:` comments before replacing the transport with a future WebSocket/backend adapter.
 
-## Current feature boundaries
+## Upstream references
 
-- **Dashboard:** fetches live prices, 24-hour changes, volume, sparklines, and global market statistics for BTC, ETH, SOL, XRP, and ADA from the CoinGecko public API. The AI signals and sentiment remain labeled demonstration values.
-- **Historical data:** requests CoinGecko price observations for the selected asset and date range, with text search, sortable date/price columns, pagination, and CSV export. Provider observations are prices, not OHLC candles or trade volume. If the provider is unavailable, the page falls back to labeled sample OHLC data.
-- **Predictions:** the latest fetched market price anchors the chart and target scaling. Forecast prices, confidence, indicators, and signals remain stored demonstration samples and are not produced by a live model or financial advice.
-- **Backtesting:** metrics, cumulative-return samples, and trades are demonstration data. The chart derives weekly P&L changes from cumulative samples; period and trade filters only operate over the data currently available. Results are not verified historical performance.
-- **Settings and administration:** not included until there are real user settings or secured backend operations to manage.
+- [CoinGecko API and attribution](https://www.coingecko.com/en/api)
+- [CoinGecko Public API rate limits](https://support.coingecko.com/articles/5125303456-what-is-the-rate-limit-for-coingecko-api-public-plan)
+- [CoinGecko data delivery options](https://www.coingecko.com/en/api/data-delivery)
+- [CoinGecko historical market chart range](https://docs.coingecko.com/reference/coins-id-market-chart-range)
 
-## Market data and a real-time feed
-
-The current app uses CoinGecko REST requests, not a true streaming feed. Dashboard quotes and Prediction's selected quote refresh every 60 seconds; Historical Data requests a range once when the asset or dates change. The supported assets are BTC, ETH, SOL, XRP, and ADA, priced in USD. Prediction targets, confidence, signals, and Backtest metrics remain demonstration data.
-
-For a real streaming experience, keep Hosting as the static frontend and add one shared market-data service:
-
-1. Choose a provider that supports all five assets and confirm its quote currency, licensing, rate limits, and browser CORS policy. A crypto exchange WebSocket can provide fast ticker updates; CoinGecko REST is suitable for periodic snapshots and global market statistics.
-2. Normalize every provider message to a stable shape such as `{ symbol, priceUsd, change24hPct, volume24hUsd, source, timestamp }`. Keep provider IDs and symbol mappings in one module so dashboard, predictions, and historical views cannot drift apart.
-3. Open one WebSocket connection for the signed-in app, subscribe only to the five supported assets, and fan normalized updates through shared React state. Reconnect with backoff, validate prices, show the source and last-update time, and mark a quote stale when updates stop. Keep REST as the initial snapshot and reconnect fallback.
-4. If several clients need the same feed, relay provider updates from Cloud Run to Firebase Realtime Database and subscribe from the app with Firebase listeners. Use Realtime Database for the latest quote because it changes frequently; write aggregated one-minute or five-minute candles to Firestore only when historical storage is needed. Do not write every tick to Firestore.
-5. Keep historical candles separate from ticker updates. A ticker is not OHLC data. Use the provider's candle endpoint for open/high/low/close and volume, then calculate backtests from those candles with disclosed fees, slippage, and date bounds.
-
-Do not put a paid provider's secret API key in a `VITE_` variable: Vite bundles those values into browser JavaScript. Put secrets in Cloud Run or another trusted backend. Firebase Hosting alone serves the frontend; it does not keep a WebSocket connection or run a market-data worker.
-
-All forecasts are for educational purposes only and do not constitute financial advice.
+Forecast scenarios and hypothetical backtest results are for educational analysis only and are not financial advice.

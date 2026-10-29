@@ -2,8 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { ChevronDown } from "lucide-react";
 import { auth } from "./firebase";
-import cryptoData from "./data/cryptoData.json";
-import { MOCK_MARKET_ASSETS } from "./data/mockMarketData";
+import { fetchMarketSnapshot, MARKET_ASSETS } from "./services/marketData";
 
 import AuthPage from "./pages/AuthPage";
 import Sidebar from "./components/Sidebar";
@@ -12,7 +11,7 @@ import HistoricalPage from "./pages/HistoricalPages";
 import BacktestPage from "./pages/BacktestPage";
 import PredictionPage from "./pages/PredictionPage";
 
-const ASSETS = MOCK_MARKET_ASSETS.map(({ symbol, name }) => ({ symbol, name }));
+const ASSETS = MARKET_ASSETS.map(({ symbol, name }) => ({ symbol, name }));
 
 const ROUTES = {
   dashboard: "/dashboard",
@@ -35,7 +34,7 @@ function getNavFromPath(pathname) {
 export default function App() {
   const [user, setUser] = useState(undefined);
   const [selectedSymbol, setSelectedSymbol] = useState("BTC");
-  const [liveAssets, setLiveAssets] = useState(null);
+  const [marketData, setMarketData] = useState({ status: "loading", snapshot: null, error: "" });
   const [historicalFromDate, setHistoricalFromDate] = useState("");
   const [historicalToDate, setHistoricalToDate] = useState("");
   const [activeNav, setActiveNav] = useState(() => getNavFromPath(window.location.pathname));
@@ -58,6 +57,42 @@ export default function App() {
     );
     return unsubscribe;
   }, []);
+
+  // ARCHITECTURE: A single app-level poll feeds the Dashboard, Historical, Predictions, and Backtest views.
+  // CHANGEPOINT: Swap fetchMarketSnapshot for the future backend/WebSocket adapter here.
+  const refreshMarket = useCallback(async (signal) => {
+    setMarketData((previous) => ({ ...previous, status: previous.snapshot ? "refreshing" : "loading", error: "" }));
+    try {
+      const snapshot = await fetchMarketSnapshot(signal);
+      setMarketData({ status: "live", snapshot, error: "" });
+    } catch (error) {
+      if (error.name === "AbortError") return;
+      setMarketData((previous) => ({
+        ...previous,
+        status: previous.snapshot ? "stale" : "error",
+        error: error.message || "Unable to load CoinGecko market data.",
+      }));
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!user) {
+      setMarketData({ status: "loading", snapshot: null, error: "" });
+      return undefined;
+    }
+    const controller = new AbortController();
+    refreshMarket(controller.signal);
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") refreshMarket(controller.signal);
+    };
+    const intervalId = window.setInterval(refreshWhenVisible, 60_000);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => {
+      controller.abort();
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
+  }, [refreshMarket, user]);
 
   useEffect(() => {
     const syncRoute = () => {
@@ -84,27 +119,14 @@ export default function App() {
     return () => window.removeEventListener("popstate", syncRoute);
   }, [user]);
 
-  const baseAssetData = cryptoData[selectedSymbol];
-  const liveAsset = liveAssets?.find((asset) => asset.symbol === selectedSymbol);
-  const forecastRows = baseAssetData.forecastRows.map((row) => ({
-    ...row,
-    date: new Intl.DateTimeFormat("en-US", { month: "short", day: "2-digit", year: "numeric" })
-      .format(new Date(Date.now() + row.day * 86_400_000)),
-  }));
-  const currentAssetData = liveAsset
-    ? {
-        ...baseAssetData,
-        currentPrice: liveAsset.price,
-        forecastPrice: liveAsset.price * (baseAssetData.forecastPrice / baseAssetData.currentPrice),
-        forecastRows: forecastRows.map((row) => ({
-          ...row,
-          price: liveAsset.price * (row.price / baseAssetData.currentPrice),
-        })),
-        marketChange: liveAsset.change,
-        marketUpdatedAt: liveAssets.updatedAt,
-        isLive: true,
-      }
-    : { ...baseAssetData, forecastRows, isLive: false };
+  const selectedAsset = MARKET_ASSETS.find((asset) => asset.symbol === selectedSymbol);
+  const liveAsset = marketData.snapshot?.assets.find((asset) => asset.symbol === selectedSymbol);
+  const currentAssetData = {
+    ...selectedAsset,
+    currentPrice: liveAsset?.priceUsd ?? null,
+    marketUpdatedAt: marketData.snapshot?.fetchedAt ?? null,
+    marketStatus: marketData.status,
+  };
 
   const navigate = useCallback((navKey) => {
     const path = ROUTES[navKey];
@@ -120,16 +142,14 @@ export default function App() {
     setActiveNav(navKey);
   }, [user]);
 
-  const handleMarketUpdate = useCallback((assets) => setLiveAssets(assets), []);
-
   const renderActivePage = () => {
     switch (activeNav) {
       case "dashboard":
-        return <DashboardPage onMarketUpdate={handleMarketUpdate} />;
+        return <DashboardPage marketData={marketData} onRefresh={() => refreshMarket()} />;
       case "historical":
         return (
           <HistoricalPage
-            assetData={currentAssetData}
+            symbol={selectedSymbol}
             fromDate={historicalFromDate}
             toDate={historicalToDate}
           />
