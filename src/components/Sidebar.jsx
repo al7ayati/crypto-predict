@@ -1,6 +1,6 @@
 import React from "react";
 import {
-  LayoutDashboard, History, FlaskConical, TrendingUp, LogOut
+  LayoutDashboard, History, FlaskConical, TrendingUp, LogOut, X
 } from "lucide-react";
 import BrandMark from "./BrandMark";
 
@@ -11,7 +11,7 @@ const NAV_ITEMS = [
   { key: "historical", label: "Historical Data", icon: History }
 ];
 
-export default function Sidebar({ activeNav, setActiveNav, user, onSignOut, signOutBusy, signOutError }) {
+export default function Sidebar({ activeNav, setActiveNav, isOpen, onClose, user, onSignOut, signOutBusy, signOutError }) {
   const displayName = user?.displayName || user?.email?.split("@")[0] || "User";
   const initials = displayName
     .split(/\s+/)
@@ -21,10 +21,11 @@ export default function Sidebar({ activeNav, setActiveNav, user, onSignOut, sign
     .toUpperCase();
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar${isOpen ? " is-open" : ""}`} aria-hidden={!isOpen && window.matchMedia("(max-width: 930px)").matches}>
       <div className="sidebar-brand">
         <BrandMark className="sidebar-brand-mark" iconSize={20} />
         <span className="sidebar-brand-text">CRYPTO<span>PREDICT</span></span>
+        <button type="button" className="sidebar-close-button" aria-label="Close navigation" onClick={onClose}><X size={19} /></button>
       </div>
       <div className="sidebar-section-label">WORKSPACE</div>
       <nav className="sidebar-nav" aria-label="Main navigation">

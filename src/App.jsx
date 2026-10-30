@@ -1,15 +1,17 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import { onAuthStateChanged, signOut } from "firebase/auth";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Menu, X } from "lucide-react";
 import { auth } from "./firebase";
 import { fetchMarketSnapshot, MARKET_ASSETS } from "./services/marketData";
+import useBinanceTradeStream from "./hooks/useBinanceTradeStream";
 
 import AuthPage from "./pages/AuthPage";
 import Sidebar from "./components/Sidebar";
+import DateRangePicker from "./components/DateRangePicker";
 import DashboardPage from "./pages/DashboardPage";
 import HistoricalPage from "./pages/HistoricalPages";
-import BacktestPage from "./pages/BacktestPage";
-import PredictionPage from "./pages/PredictionPage";
+const BacktestPage = lazy(() => import("./pages/BacktestPage"));
+const PredictionPage = lazy(() => import("./pages/PredictionPage"));
 
 const ASSETS = MARKET_ASSETS.map(({ symbol, name }) => ({ symbol, name }));
 
@@ -35,12 +37,14 @@ export default function App() {
   const [user, setUser] = useState(undefined);
   const [selectedSymbol, setSelectedSymbol] = useState("BTC");
   const [marketData, setMarketData] = useState({ status: "loading", snapshot: null, error: "" });
-  const [historicalFromDate, setHistoricalFromDate] = useState("");
-  const [historicalToDate, setHistoricalToDate] = useState("");
+  const [historicalFromDate, setHistoricalFromDate] = useState(() => new Date(Date.now() - 29 * 86_400_000).toISOString().slice(0, 10));
+  const [historicalToDate, setHistoricalToDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [activeNav, setActiveNav] = useState(() => getNavFromPath(window.location.pathname));
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [signOutBusy, setSignOutBusy] = useState(false);
   const [signOutError, setSignOutError] = useState("");
   const [authError, setAuthError] = useState("");
+  const { prices: liveTradePrices, status: tradeStreamStatus } = useBinanceTradeStream(Boolean(user));
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(
@@ -58,8 +62,7 @@ export default function App() {
     return unsubscribe;
   }, []);
 
-  // ARCHITECTURE: A single app-level poll feeds the Dashboard, Historical, Predictions, and Backtest views.
-  // CHANGEPOINT: Swap fetchMarketSnapshot for the future backend/WebSocket adapter here.
+  // ARCHITECTURE: CoinGecko supplies dashboard metadata; history pages use cached Binance candles.
   const refreshMarket = useCallback(async (signal) => {
     setMarketData((previous) => ({ ...previous, status: previous.snapshot ? "refreshing" : "loading", error: "" }));
     try {
@@ -121,16 +124,21 @@ export default function App() {
 
   const selectedAsset = MARKET_ASSETS.find((asset) => asset.symbol === selectedSymbol);
   const liveAsset = marketData.snapshot?.assets.find((asset) => asset.symbol === selectedSymbol);
+  const liveTrade = liveTradePrices[selectedSymbol];
+  const hasFreshTrade = tradeStreamStatus === "live" && liveTrade && Date.now() - liveTrade.timestamp < 60_000;
   const currentAssetData = {
     ...selectedAsset,
-    currentPrice: liveAsset?.priceUsd ?? null,
-    marketUpdatedAt: marketData.snapshot?.fetchedAt ?? null,
+    currentPrice: hasFreshTrade ? liveTrade.price : liveAsset?.priceUsd ?? null,
+    currentPriceQuote: hasFreshTrade ? "USDT" : "USD",
+    currentPriceSource: hasFreshTrade ? "Binance Spot" : "CoinGecko aggregated quote",
+    marketUpdatedAt: hasFreshTrade ? new Date(liveTrade.timestamp).toISOString() : liveAsset?.providerUpdatedAt ?? marketData.snapshot?.fetchedAt ?? null,
     marketStatus: marketData.status,
   };
 
   const navigate = useCallback((navKey) => {
     const path = ROUTES[navKey];
     if (!path) return;
+    setMobileMenuOpen(false);
     if (!user) {
       window.history.pushState(null, "", "/auth");
       setActiveNav("dashboard");
@@ -145,7 +153,7 @@ export default function App() {
   const renderActivePage = () => {
     switch (activeNav) {
       case "dashboard":
-        return <DashboardPage marketData={marketData} onRefresh={() => refreshMarket()} />;
+        return <DashboardPage marketData={marketData} liveTradePrices={liveTradePrices} tradeStreamStatus={tradeStreamStatus} onRefresh={() => refreshMarket()} />;
       case "historical":
         return (
           <HistoricalPage
@@ -198,9 +206,12 @@ export default function App() {
 
   return (
     <div className="app-layout">
+      {mobileMenuOpen && <button type="button" className="sidebar-backdrop" aria-label="Close navigation" onClick={() => setMobileMenuOpen(false)} />}
       <Sidebar
         activeNav={activeNav}
         setActiveNav={navigate}
+        isOpen={mobileMenuOpen}
+        onClose={() => setMobileMenuOpen(false)}
         user={user}
         onSignOut={handleSignOut}
         signOutBusy={signOutBusy}
@@ -209,6 +220,9 @@ export default function App() {
       <main className="app-main">
         <header className="topbar">
           <div className="topbar-title">
+            <button type="button" className="mobile-menu-toggle" onClick={() => setMobileMenuOpen((open) => !open)} aria-label={mobileMenuOpen ? "Close navigation" : "Open navigation"} aria-expanded={mobileMenuOpen}>
+              {mobileMenuOpen ? <X size={19} /> : <Menu size={19} />}
+            </button>
             <span className="topbar-kicker">CRYPTOCURRENCY ANALYTICS</span>
             <h1>{PAGE_TITLES[activeNav] || "Dashboard"}</h1>
           </div>
@@ -232,37 +246,22 @@ export default function App() {
               </label>
             )}
             {activeNav === "historical" && (
-              <>
-                <label className="flex flex-col gap-1 text-[9px] font-semibold text-slate-500">
-                  From
-                  <input
-                    type="date"
-                    value={historicalFromDate}
-                    max={historicalToDate || new Date().toISOString().slice(0, 10)}
-                    onChange={(event) => setHistoricalFromDate(event.target.value)}
-                    aria-label="Historical data start date"
-                    className="h-[39px] rounded-lg border border-slate-200 bg-white px-2 text-[10px] font-medium text-slate-700"
-                  />
-                </label>
-                <label className="flex flex-col gap-1 text-[9px] font-semibold text-slate-500">
-                  To
-                  <input
-                    type="date"
-                    value={historicalToDate}
-                    min={historicalFromDate || undefined}
-                    max={new Date().toISOString().slice(0, 10)}
-                    onChange={(event) => setHistoricalToDate(event.target.value)}
-                    aria-label="Historical data end date"
-                    className="h-[39px] rounded-lg border border-slate-200 bg-white px-2 text-[10px] font-medium text-slate-700"
-                  />
-                </label>
-              </>
+              <DateRangePicker
+                fromDate={historicalFromDate}
+                toDate={historicalToDate}
+                onApply={(from, to) => {
+                  setHistoricalFromDate(from);
+                  setHistoricalToDate(to);
+                }}
+              />
             )}
           </div>
         </header>
 
         <div className="page-content" key={activeNav}>
-          {renderActivePage()}
+          <Suspense fallback={<div className="panel text-sm text-slate-500" role="status">Loading analytics…</div>}>
+            {renderActivePage()}
+          </Suspense>
         </div>
 
         <footer className="app-footer">

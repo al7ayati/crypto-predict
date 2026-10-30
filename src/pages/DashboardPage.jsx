@@ -1,6 +1,7 @@
 import React from "react";
 import { ArrowDownRight, ArrowUpRight, BarChart3, Coins, Gauge, RefreshCw } from "lucide-react";
-import { COINGECKO_ATTRIBUTION_URL, MARKET_ASSETS } from "../services/marketData";
+import { BINANCE_MARKET_DATA_URL, COINGECKO_ATTRIBUTION_URL, MARKET_ASSETS } from "../services/marketData";
+import { formatUtcTimestamp } from "../utils/formatting";
 
 const STAT_ICONS = [Coins, BarChart3, Gauge, RefreshCw];
 
@@ -21,7 +22,7 @@ function formatPrice(price) {
 
 function formatTime(timestamp) {
   if (!timestamp) return "Waiting for data";
-  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "medium" }).format(new Date(timestamp));
+  return formatUtcTimestamp(timestamp);
 }
 
 function Sparkline({ values, symbol }) {
@@ -58,7 +59,7 @@ function StatCard({ stat, index }) {
   </article>;
 }
 
-export default function DashboardPage({ marketData, onRefresh }) {
+export default function DashboardPage({ marketData, liveTradePrices = {}, tradeStreamStatus = "offline", onRefresh }) {
   const snapshot = marketData.snapshot;
   const bySymbol = new Map((snapshot?.assets || []).map((asset) => [asset.symbol, asset]));
   const assets = MARKET_ASSETS.map((asset) => ({ ...asset, ...bySymbol.get(asset.symbol) }));
@@ -78,7 +79,19 @@ export default function DashboardPage({ marketData, onRefresh }) {
   const statusLabel = status === "live" ? "Market data loaded" : status === "refreshing" ? "Updating market data" : status === "stale" ? "Showing last successful data" : status === "error" ? "Market data unavailable" : "Loading market data";
   const providerTimes = (snapshot?.assets || []).map((asset) => Date.parse(asset.providerUpdatedAt)).filter(Number.isFinite);
   const newestProviderUpdate = providerTimes.length ? new Date(Math.max(...providerTimes)).toISOString() : null;
-  const sourceNote = `${marketData.error ? `${marketData.error} · ` : ""}Source: CoinGecko · queried ${formatTime(snapshot?.fetchedAt)}${newestProviderUpdate ? ` · latest provider timestamp ${formatTime(newestProviderUpdate)}` : ""} · refreshes every 60 seconds while this app is open.`;
+  const streamLabel = tradeStreamStatus === "live" ? "Binance trade stream connected" : tradeStreamStatus === "reconnecting" ? "Binance trade stream reconnecting; using CoinGecko prices" : tradeStreamStatus === "connecting" ? "Connecting to Binance; using CoinGecko prices" : "Binance stream offline; using CoinGecko prices";
+  const sourceNote = `${marketData.error ? `${marketData.error} · ` : ""}CoinGecko market metadata queried ${formatTime(snapshot?.fetchedAt)}${newestProviderUpdate ? ` · provider timestamp ${formatTime(newestProviderUpdate)}` : ""} · ${streamLabel}.`;
+
+  const freshTrade = (symbol) => {
+    const quote = liveTradePrices[symbol];
+    return tradeStreamStatus === "live" && quote && Date.now() - quote.timestamp < 60_000 ? quote : null;
+  };
+  const formatQuote = (asset, quote) => {
+    if (quote) {
+      return `${quote.price.toLocaleString("en-US", { minimumFractionDigits: quote.price < 1 ? 4 : 2, maximumFractionDigits: quote.price < 1 ? 8 : 2 })} USDT`;
+    }
+    return formatPrice(asset.priceUsd);
+  };
 
   return <div className="space-y-7">
     <section>
@@ -103,26 +116,30 @@ export default function DashboardPage({ marketData, onRefresh }) {
 
     <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-900/[.025]">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-5 sm:px-6">
-        <div><h2 className="text-base font-bold text-slate-900">Market overview</h2><p className="mt-1 text-xs text-slate-500">Aggregated quotes for the selected assets · USD</p></div>
+        <div><h2 className="text-base font-bold text-slate-900">Market overview</h2><p className="mt-1 text-xs text-slate-500">Binance Spot last trades (USDT) with CoinGecko aggregated USD fallback</p></div>
         <span className="rounded-lg bg-slate-100 px-2.5 py-1.5 text-[11px] font-semibold text-slate-500">{assets.length} assets</span>
       </div>
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[720px] border-collapse text-left">
+      <div className="market-table-wrap">
+        <table className="market-overview-table w-full min-w-[780px] border-collapse text-left">
           <thead><tr className="bg-slate-50/80 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-            <th className="px-6 py-3.5">Asset</th><th className="px-4 py-3.5">Price (USD)</th><th className="px-4 py-3.5">24h Change</th><th className="px-4 py-3.5">24h Volume</th><th className="px-6 py-3.5">Observed 7D trend</th>
+            <th className="px-6 py-3.5">Asset</th><th className="px-4 py-3.5">Last trade (USDT)*</th><th className="px-4 py-3.5">24h Change</th><th className="px-4 py-3.5">24h Volume (USD)</th><th className="px-4 py-3.5">Market cap (USD)</th><th className="px-6 py-3.5">Observed 7D trend</th>
           </tr></thead>
           <tbody className="divide-y divide-slate-100">{assets.map((asset) => <tr key={asset.symbol} className="transition hover:bg-slate-50/70">
-            <td className="px-6 py-4"><div className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-navy-900 text-[10px] font-bold text-white">{asset.symbol}</span><span><strong className="block text-sm font-semibold text-slate-800">{asset.name}</strong><span className="mt-0.5 block text-[11px] text-slate-400">{asset.symbol}</span></span></div></td>
-            <td className="px-4 py-4 text-sm font-semibold tabular-nums text-slate-800">{formatPrice(asset.priceUsd)}</td>
-            <td className={`px-4 py-4 text-sm font-semibold tabular-nums ${asset.change24hPct >= 0 ? "text-emerald-600" : "text-rose-600"}`}>{Number.isFinite(asset.change24hPct) ? `${asset.change24hPct >= 0 ? "+" : ""}${asset.change24hPct.toFixed(2)}%` : "—"}</td>
-            <td className="px-4 py-4 text-sm text-slate-600">{compactCurrency(asset.volume24hUsd)}</td>
-            <td className="px-6 py-4"><Sparkline values={asset.sparkline7d || []} symbol={asset.symbol} /></td>
+            <td data-label="Asset" className="px-6 py-4"><div className="flex items-center gap-3"><span className="market-asset-icon">{asset.imageUrl && <img src={asset.imageUrl} alt="" loading="lazy" onError={(event) => { event.currentTarget.hidden = true; }} />}<span>{asset.symbol}</span></span><span><strong className="block text-sm font-semibold text-slate-800">{asset.name}</strong><span className="mt-0.5 block text-[11px] text-slate-400">{asset.symbol}</span></span></div></td>
+            <td data-label="Last trade (USDT)" className="px-4 py-4 text-sm font-semibold tabular-nums text-slate-800">{formatQuote(asset, freshTrade(asset.symbol))}<span className="block text-[9px] font-normal text-slate-400">{freshTrade(asset.symbol) ? `Binance Spot · ${formatTime(new Date(liveTradePrices[asset.symbol].timestamp).toISOString())}` : "CoinGecko aggregated USD"}</span></td>
+            <td data-label="24h Change" className={`px-4 py-4 text-sm font-semibold tabular-nums ${asset.change24hPct >= 0 ? "text-emerald-600" : "text-rose-600"}`}>{Number.isFinite(asset.change24hPct) ? `${asset.change24hPct >= 0 ? "+" : ""}${asset.change24hPct.toFixed(2)}%` : "—"}</td>
+            <td data-label="24h Volume (USD)" className="px-4 py-4 text-sm text-slate-600">{compactCurrency(asset.volume24hUsd)}</td>
+            <td data-label="Market cap (USD)" className="px-4 py-4 text-sm text-slate-600">{compactCurrency(asset.marketCapUsd)}</td>
+            <td data-label="7-day trend" className="px-6 py-4"><Sparkline values={asset.sparkline7d || []} symbol={asset.symbol} /></td>
           </tr>)}</tbody>
         </table>
       </div>
       <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 px-5 py-3 text-[10px] leading-5 text-slate-400 sm:px-6">
-        <span>{sourceNote} · Aggregated market data, not an individual exchange quote.</span>
-        <a href={COINGECKO_ATTRIBUTION_URL} target="_blank" rel="noreferrer" className="font-semibold text-slate-500 underline decoration-slate-300 underline-offset-2">Data provided by CoinGecko</a>
+        <span>{sourceNote} *A Binance trade is priced in USDT; CoinGecko fallback is an aggregated USD quote. Tracked cap and volume use CoinGecko's reported per-asset fields.</span>
+        <span className="flex flex-wrap gap-x-3 gap-y-1">
+          <a href={BINANCE_MARKET_DATA_URL} target="_blank" rel="noreferrer" className="font-semibold text-slate-500 underline decoration-slate-300 underline-offset-2">Binance Spot trades</a>
+          <a href={COINGECKO_ATTRIBUTION_URL} target="_blank" rel="noreferrer" className="font-semibold text-slate-500 underline decoration-slate-300 underline-offset-2">CoinGecko market data</a>
+        </span>
       </div>
     </section>
   </div>;

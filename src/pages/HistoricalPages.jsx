@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { ArrowDown, ArrowUp, ArrowUpDown, Download, Search } from "lucide-react";
-import { COINGECKO_ATTRIBUTION_URL, fetchPriceHistory, toDailyPrices } from "../services/marketData";
+import { BINANCE_MARKET_DATA_URL, fetchPriceHistory, toDailyPrices } from "../services/marketData";
+import { formatUtcTimestamp } from "../utils/formatting";
 
 const PAGE_SIZE = 10;
-const today = () => new Date().toISOString().slice(0, 10);
-const initialStartDate = () => new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
 
 function getPageItems(page, pageCount) {
   if (pageCount <= 5) return Array.from({ length: pageCount }, (_, index) => index + 1);
@@ -19,50 +19,32 @@ function getPageItems(page, pageCount) {
 }
 
 function formatPrice(value) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency", currency: "USD", minimumFractionDigits: value < 1 ? 4 : 2,
-    maximumFractionDigits: value < 1 ? 4 : 2,
-  }).format(value);
+  return `${value.toLocaleString("en-US", { minimumFractionDigits: value < 1 ? 4 : 2, maximumFractionDigits: value < 1 ? 8 : 2 })} USDT`;
 }
 
 export default function HistoricalPage({ symbol, fromDate, toDate }) {
-  const [liveLogs, setLiveLogs] = useState([]);
-  const [historyState, setHistoryState] = useState("loading");
-  const [historyError, setHistoryError] = useState("");
-  const [fetchedAt, setFetchedAt] = useState(null);
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("date");
   const [sortDirection, setSortDirection] = useState("desc");
   const [page, setPage] = useState(1);
 
-  // CHANGEPOINT: Historical page consumes price observations only; it never manufactures OHLC values.
+  const historyQuery = useQuery({
+    queryKey: ["market-history", symbol, fromDate, toDate],
+    queryFn: async ({ signal }) => {
+      const observations = await fetchPriceHistory(symbol, fromDate, toDate, signal);
+      const candles = toDailyPrices(observations);
+      if (!candles.length) throw new Error("No Binance daily candles were returned for this date range.");
+      return candles;
+    },
+    refetchInterval: 5 * 60 * 1000,
+  });
+  const liveLogs = historyQuery.data || [];
+  const historyError = historyQuery.error?.message || "";
+  const historyState = historyQuery.isPending ? "loading" : historyQuery.isError && !liveLogs.length ? "error" : "live";
+  const fetchedAt = historyQuery.dataUpdatedAt ? new Date(historyQuery.dataUpdatedAt).toISOString() : null;
+
   useEffect(() => {
-    const controller = new AbortController();
-    const end = toDate || today();
-    const start = fromDate || initialStartDate();
     setPage(1);
-    setHistoryState("loading");
-    setHistoryError("");
-    setLiveLogs([]);
-    if (new Date(end) - new Date(start) > 365 * 86_400_000) {
-      setHistoryState("error");
-      setHistoryError("The public CoinGecko endpoint supports at most one year of history.");
-      return () => controller.abort();
-    }
-    fetchPriceHistory(symbol, start, end, controller.signal)
-      .then((observations) => {
-        const daily = toDailyPrices(observations).map(({ date, price }) => ({ date, price }));
-        if (!daily.length) throw new Error("No price observations were returned for this date range.");
-        setLiveLogs(daily);
-        setFetchedAt(new Date().toISOString());
-        setHistoryState("live");
-      })
-      .catch((error) => {
-        if (error.name === "AbortError") return;
-        setHistoryState("error");
-        setHistoryError(error.message || "Unable to load CoinGecko historical prices.");
-      });
-    return () => controller.abort();
   }, [fromDate, symbol, toDate]);
 
   const filteredLogs = useMemo(() => {
@@ -87,13 +69,16 @@ export default function HistoricalPage({ symbol, fromDate, toDate }) {
   };
 
   const exportCsv = () => {
-    const rows = [["date_utc", "observed_price_usd"], ...filteredLogs.map((row) => [row.date, row.price])];
+    const rows = [
+      ["date_utc", "open_usdt", "high_usdt", "low_usdt", "close_usdt", "base_volume", "quote_volume_usdt", "trade_count"],
+      ...filteredLogs.map((row) => [row.date, row.open, row.high, row.low, row.close, row.volume, row.quoteVolume, row.trades]),
+    ];
     const csv = rows.map((row) => row.map((value) => `"${String(value ?? "").replaceAll('"', '""')}"`).join(",")).join("\r\n");
     const blob = new Blob(["\uFEFF", csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `${symbol.toLowerCase()}-coingecko-daily-prices.csv`;
+    link.download = `${symbol.toLowerCase()}-binance-daily-candles.csv`;
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -108,7 +93,7 @@ export default function HistoricalPage({ symbol, fromDate, toDate }) {
 
   return <div className="history-page panel">
     <div className="historical-header">
-      <div><h3 className="page-panel-title">Historical Price Observations · {symbol}</h3><p className="dashboard-panel-subtitle">CoinGecko observed prices, collapsed to the last observation of each UTC date · USD</p></div>
+      <div><h3 className="page-panel-title">Historical Market Data · {symbol}</h3><p className="dashboard-panel-subtitle">Binance Spot daily OHLCV candles · {symbol}/USDT · candle dates in UTC</p></div>
       <button className="history-export-button" type="button" onClick={exportCsv} disabled={!filteredLogs.length}><Download size={16} /> Export CSV</button>
     </div>
     <div className="mb-4 flex flex-wrap items-end gap-3">
@@ -117,10 +102,19 @@ export default function HistoricalPage({ symbol, fromDate, toDate }) {
       </label>
     </div>
     <div className="wide-table-scroll"><table className="data-table history-table">
-      <thead><tr><th aria-sort={sortBy === "date" ? sortDirection === "asc" ? "ascending" : "descending" : "none"}>{renderSortButton("date", "Record date (UTC)")}</th><th aria-sort={sortBy === "price" ? sortDirection === "asc" ? "ascending" : "descending" : "none"}>{renderSortButton("price", "Observed price (USD)")}</th></tr></thead>
+      <thead><tr><th aria-sort={sortBy === "date" ? sortDirection === "asc" ? "ascending" : "descending" : "none"}>{renderSortButton("date", "Candle date (UTC)")}</th><th>Open (USDT)</th><th>High (USDT)</th><th>Low (USDT)</th><th aria-sort={sortBy === "price" ? sortDirection === "asc" ? "ascending" : "descending" : "none"}>{renderSortButton("price", "Close (USDT)")}</th><th>Volume ({symbol})</th><th>Volume (USDT)</th><th>Trades</th></tr></thead>
       <tbody>
-        {visibleLogs.map((row) => <tr key={row.date}><td><strong>{row.date}</strong></td><td><strong>{formatPrice(row.price)}</strong></td></tr>)}
-        {!visibleLogs.length && <tr><td colSpan={2} style={{ textAlign: "center" }}>{historyState === "loading" ? "Loading historical price observations…" : historyState === "error" ? "Historical data is unavailable." : "No records match these filters."}</td></tr>}
+        {visibleLogs.map((row) => <tr key={row.date}>
+          <td data-label="Candle date (UTC)"><strong>{row.date}</strong></td>
+          <td data-label="Open (USDT)">{formatPrice(row.open)}</td>
+          <td data-label="High (USDT)">{formatPrice(row.high)}</td>
+          <td data-label="Low (USDT)">{formatPrice(row.low)}</td>
+          <td data-label="Close (USDT)"><strong>{formatPrice(row.close)}</strong></td>
+          <td data-label={`Volume (${symbol})`}>{row.volume.toLocaleString("en-US", { maximumFractionDigits: 4 })}</td>
+          <td data-label="Volume (USDT)">{row.quoteVolume.toLocaleString("en-US", { maximumFractionDigits: 2 })}</td>
+          <td data-label="Trades">{row.trades.toLocaleString("en-US")}</td>
+        </tr>)}
+        {!visibleLogs.length && <tr><td colSpan={8} style={{ textAlign: "center" }}>{historyState === "loading" ? "Loading Binance daily candles…" : historyState === "error" ? "Historical data is unavailable." : "No records match these filters."}</td></tr>}
       </tbody>
     </table></div>
     <nav className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4" aria-label="Historical data pages">
@@ -131,6 +125,6 @@ export default function HistoricalPage({ symbol, fromDate, toDate }) {
         <button type="button" onClick={() => setPage((value) => Math.min(pageCount, value + 1))} disabled={currentPage === pageCount} className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-[10px] font-semibold text-slate-600 disabled:opacity-40">Next</button>
       </div>
     </nav>
-    <p className="mt-3 text-[10px] text-slate-400" role={historyError ? "status" : undefined}>{historyError || (historyState === "loading" ? "Waiting for CoinGecko…" : `Source: CoinGecko · requested ${fetchedAt ? new Date(fetchedAt).toLocaleString() : "—"}. Values are observed prices, not OHLC candles or trading volume.`)} <a href={COINGECKO_ATTRIBUTION_URL} target="_blank" rel="noreferrer" className="underline underline-offset-2">Provider details</a></p>
+    <p className="mt-3 text-[10px] text-slate-400" role={historyError ? "status" : undefined}>{historyError ? `${liveLogs.length ? "Showing cached candles; refresh failed" : "Unable to load candles"}: ${historyError}` : historyState === "loading" ? "Waiting for Binance market data…" : `Source: Binance Spot API · ${fetchedAt ? `fetched ${formatUtcTimestamp(fetchedAt)}` : "cached data"} · open, high, low, close, and volume are exchange candle fields; the latest UTC candle may still be forming.`} <a href={BINANCE_MARKET_DATA_URL} target="_blank" rel="noreferrer" className="underline underline-offset-2">Provider details</a></p>
   </div>;
 }

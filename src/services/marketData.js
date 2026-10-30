@@ -1,15 +1,16 @@
 // ARCHITECTURE: Keep provider IDs, quote normalization, attribution, and REST calls here.
-// CHANGEPOINT: Replace this module's transport with a server relay/WebSocket later; keep its data shapes stable.
 export const MARKET_ASSETS = [
-  { id: "bitcoin", symbol: "BTC", name: "Bitcoin" },
-  { id: "ethereum", symbol: "ETH", name: "Ethereum" },
-  { id: "solana", symbol: "SOL", name: "Solana" },
-  { id: "ripple", symbol: "XRP", name: "XRP" },
-  { id: "cardano", symbol: "ADA", name: "Cardano" },
+  { id: "bitcoin", symbol: "BTC", name: "Bitcoin", binancePair: "BTCUSDT" },
+  { id: "ethereum", symbol: "ETH", name: "Ethereum", binancePair: "ETHUSDT" },
+  { id: "solana", symbol: "SOL", name: "Solana", binancePair: "SOLUSDT" },
+  { id: "ripple", symbol: "XRP", name: "XRP", binancePair: "XRPUSDT" },
+  { id: "cardano", symbol: "ADA", name: "Cardano", binancePair: "ADAUSDT" },
 ];
 
 export const COINGECKO_ATTRIBUTION_URL = "https://www.coingecko.com/en/api";
+export const BINANCE_MARKET_DATA_URL = "https://www.binance.com/en/markets";
 const API_BASE_URL = "https://api.coingecko.com/api/v3";
+const BINANCE_API_BASE_URL = "https://api.binance.com/api/v3";
 // The keyless Public API has a variable IP rate limit; keep this tab below five requests/minute.
 const MIN_REQUEST_GAP_MS = 13_000;
 let requestQueue = Promise.resolve();
@@ -52,6 +53,13 @@ async function requestJson(url, signal) {
   return response.json();
 }
 
+function getUtcDateTimestamp(value, endOfDay = false) {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return NaN;
+  const timestamp = new Date(`${value}T00:00:00.000Z`).getTime();
+  if (!Number.isFinite(timestamp) || new Date(timestamp).toISOString().slice(0, 10) !== value) return NaN;
+  return timestamp + (endOfDay ? 86_399_999 : 0);
+}
+
 // CHANGEPOINT: One batched request supplies every current quote and its 7-day sparkline.
 export async function fetchMarketSnapshot(signal) {
   const params = new URLSearchParams({
@@ -75,6 +83,7 @@ export async function fetchMarketSnapshot(signal) {
       change24hPct: Number.isFinite(row.price_change_percentage_24h) ? row.price_change_percentage_24h : null,
       volume24hUsd: Number.isFinite(row.total_volume) ? row.total_volume : null,
       marketCapUsd: Number.isFinite(row.market_cap) ? row.market_cap : null,
+      imageUrl: typeof row.image === "string" ? row.image : null,
       providerUpdatedAt: row.last_updated || null,
       sparkline7d: Array.isArray(row.sparkline_in_7d?.price) ? row.sparkline_in_7d.price.filter(Number.isFinite) : [],
     };
@@ -82,24 +91,73 @@ export async function fetchMarketSnapshot(signal) {
   return { source: "CoinGecko", sourceUrl: COINGECKO_ATTRIBUTION_URL, fetchedAt: new Date().toISOString(), assets };
 }
 
-// CoinGecko market_chart/range returns price observations, not OHLC candles.
+// Binance daily klines provide exchange-specific OHLCV and avoid CoinGecko's public-history request queue.
 export async function fetchPriceHistory(symbol, fromDate, toDate, signal) {
   const asset = MARKET_ASSETS.find((item) => item.symbol === symbol);
   if (!asset) throw new Error(`Unsupported asset: ${symbol}`);
-  const from = Math.floor(new Date(`${fromDate}T00:00:00.000Z`).getTime() / 1000);
-  const to = Math.floor(new Date(`${toDate}T23:59:59.999Z`).getTime() / 1000);
+  const from = getUtcDateTimestamp(fromDate);
+  const to = getUtcDateTimestamp(toDate, true);
   if (!Number.isFinite(from) || !Number.isFinite(to) || from > to) throw new Error("Choose a valid date range.");
-  const params = new URLSearchParams({ vs_currency: "usd", from: String(from), to: String(to) });
-  const result = await requestJson(`${API_BASE_URL}/coins/${asset.id}/market_chart/range?${params}`, signal);
-  if (!Array.isArray(result.prices)) throw new Error("CoinGecko returned invalid historical price data.");
-  return result.prices
-    .filter((point) => Array.isArray(point) && Number.isFinite(point[0]) && Number.isFinite(point[1]) && point[1] > 0)
-    .map(([timestamp, price]) => ({ timestamp, price, date: new Date(timestamp).toISOString().slice(0, 10) }));
+  const candles = [];
+  let startTime = from;
+  while (startTime <= to) {
+    const params = new URLSearchParams({
+      symbol: asset.binancePair,
+      interval: "1d",
+      startTime: String(startTime),
+      endTime: String(to),
+      limit: "1000",
+    });
+    const response = await fetch(`${BINANCE_API_BASE_URL}/klines?${params}`, {
+      signal,
+      headers: { accept: "application/json" },
+    });
+    if (!response.ok) {
+      const error = new Error(`Binance returned HTTP ${response.status} for ${symbol} daily candles.`);
+      error.status = response.status;
+      throw error;
+    }
+    const rows = await response.json();
+    if (!Array.isArray(rows)) throw new Error(`Binance returned invalid historical data for ${symbol}.`);
+    const validRows = rows.filter((row) =>
+      Array.isArray(row) &&
+      Number.isFinite(Number(row[0])) &&
+      [1, 2, 3, 4, 5, 7, 8, 6].every((index) => Number.isFinite(Number(row[index]))) &&
+      Number(row[1]) > 0 &&
+      Number(row[2]) > 0 &&
+      Number(row[3]) > 0 &&
+      Number(row[4]) > 0 &&
+      Number(row[5]) >= 0
+    );
+    candles.push(...validRows.map((row) => {
+      const timestamp = Number(row[0]);
+      return {
+        timestamp,
+        date: new Date(timestamp).toISOString().slice(0, 10),
+        open: Number(row[1]),
+        high: Number(row[2]),
+        low: Number(row[3]),
+        close: Number(row[4]),
+        price: Number(row[4]),
+        volume: Number(row[5]),
+        quoteVolume: Number(row[7]),
+        trades: Number(row[8]),
+        candleCloseTime: Number(row[6]),
+      };
+    }));
+    const lastTimestamp = validRows.length ? Number(validRows.at(-1)[0]) : null;
+    if (validRows.length < 1000 || lastTimestamp === null || lastTimestamp >= to) break;
+    startTime = lastTimestamp + 86_400_000;
+  }
+  return candles.sort((left, right) => left.timestamp - right.timestamp);
 }
 
-// Collapse intraday observations to the final observed price each UTC date for historical tables/backtests.
+// Keep the newest observation per UTC date if a provider returns more than one point per day.
 export function toDailyPrices(observations) {
   const byDate = new Map();
-  observations.forEach((point) => byDate.set(point.date, point));
+  observations.forEach((point) => {
+    const previous = byDate.get(point.date);
+    if (!previous || point.timestamp > previous.timestamp) byDate.set(point.date, point);
+  });
   return [...byDate.values()].sort((left, right) => left.timestamp - right.timestamp);
 }
