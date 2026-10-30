@@ -223,8 +223,10 @@ export default function App() {
             <button type="button" className="mobile-menu-toggle" onClick={() => setMobileMenuOpen((open) => !open)} aria-label={mobileMenuOpen ? "Close navigation" : "Open navigation"} aria-expanded={mobileMenuOpen}>
               {mobileMenuOpen ? <X size={19} /> : <Menu size={19} />}
             </button>
-            <span className="topbar-kicker">CRYPTOCURRENCY ANALYTICS</span>
-            <h1>{PAGE_TITLES[activeNav] || "Dashboard"}</h1>
+            <div className="topbar-heading-copy">
+              <span className="topbar-kicker">CRYPTOCURRENCY ANALYTICS</span>
+              <h1>{PAGE_TITLES[activeNav] || "Dashboard"}</h1>
+            </div>
           </div>
 
           <div className="topbar-actions">

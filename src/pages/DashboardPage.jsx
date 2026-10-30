@@ -38,7 +38,7 @@ function Sparkline({ values, symbol }) {
   }).join(" ");
   const rising = values.at(-1) >= values[0];
   return <svg viewBox={`0 0 ${width} ${height}`} className="h-8 w-24" role="img" aria-label={`${symbol} observed 7-day price trend`}>
-    <polyline points={points} fill="none" stroke={rising ? "#0ba77b" : "#df5365"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    <polyline points={points} fill="none" stroke={rising ? "#176b44" : "#b42335"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
   </svg>;
 }
 
@@ -127,7 +127,7 @@ export default function DashboardPage({ marketData, liveTradePrices = {}, tradeS
           <tbody className="divide-y divide-slate-100">{assets.map((asset) => <tr key={asset.symbol} className="transition hover:bg-slate-50/70">
             <td data-label="Asset" className="px-6 py-4"><div className="flex items-center gap-3"><span className="market-asset-icon">{asset.imageUrl && <img src={asset.imageUrl} alt="" loading="lazy" onError={(event) => { event.currentTarget.hidden = true; }} />}<span>{asset.symbol}</span></span><span><strong className="block text-sm font-semibold text-slate-800">{asset.name}</strong><span className="mt-0.5 block text-[11px] text-slate-400">{asset.symbol}</span></span></div></td>
             <td data-label="Last trade (USDT)" className="px-4 py-4 text-sm font-semibold tabular-nums text-slate-800">{formatQuote(asset, freshTrade(asset.symbol))}<span className="block text-[9px] font-normal text-slate-400">{freshTrade(asset.symbol) ? `Binance Spot · ${formatTime(new Date(liveTradePrices[asset.symbol].timestamp).toISOString())}` : "CoinGecko aggregated USD"}</span></td>
-            <td data-label="24h Change" className={`px-4 py-4 text-sm font-semibold tabular-nums ${asset.change24hPct >= 0 ? "text-emerald-600" : "text-rose-600"}`}>{Number.isFinite(asset.change24hPct) ? `${asset.change24hPct >= 0 ? "+" : ""}${asset.change24hPct.toFixed(2)}%` : "—"}</td>
+            <td data-label="24h Change" className="px-4 py-4 text-sm font-semibold tabular-nums"><span className={`market-change-badge ${!Number.isFinite(asset.change24hPct) ? "is-neutral" : asset.change24hPct >= 0 ? "is-positive" : "is-negative"}`} aria-label={Number.isFinite(asset.change24hPct) ? `24-hour change ${asset.change24hPct >= 0 ? "up" : "down"} ${Math.abs(asset.change24hPct).toFixed(2)} percent` : "24-hour change unavailable"}>{Number.isFinite(asset.change24hPct) ? `${asset.change24hPct >= 0 ? "+" : ""}${asset.change24hPct.toFixed(2)}%` : "—"}</span></td>
             <td data-label="24h Volume (USD)" className="px-4 py-4 text-sm text-slate-600">{compactCurrency(asset.volume24hUsd)}</td>
             <td data-label="Market cap (USD)" className="px-4 py-4 text-sm text-slate-600">{compactCurrency(asset.marketCapUsd)}</td>
             <td data-label="7-day trend" className="px-6 py-4"><Sparkline values={asset.sparkline7d || []} symbol={asset.symbol} /></td>
