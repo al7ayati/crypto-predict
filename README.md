@@ -51,7 +51,7 @@ Populate the Firebase values before building. Firebase Hosting rewrites app rout
 
 ## Code map and maintenance
 
-See [DEVELOPER_HANDOFF.md](./DEVELOPER_HANDOFF.md) for page behavior, data contracts, rate-limit behavior, source links, forecast/backtest assumptions, and change points. The core provider adapter lives in `src/services/marketData.js`; search for `ARCHITECTURE:` and `CHANGEPOINT:` comments before replacing the transport with a future WebSocket/backend adapter.
+See [DEVELOPER_HANDOFF.md](./DEVELOPER_HANDOFF.md) for page behavior, data contracts, rate-limit behavior, source links, forecast/backtest assumptions, and change points. Provider URLs, request limits, candle settings, and supported assets are grouped in `src/config/marketData.js`; request handling and response normalization remain in `src/services/marketData.js`.
 
 ## Upstream references
 

@@ -9,7 +9,7 @@
 
 ## Source and data contracts
 
-Provider IDs and transport are centralized in `src/services/marketData.js`:
+Provider settings and supported assets live in `src/config/marketData.js`. Keep provider URLs, public request limits, candle interval/page size, and asset-to-market-pair mappings there. `src/services/marketData.js` owns request handling, response validation, and normalization:
 
 - `MARKET_ASSETS`: `bitcoin/BTC`, `ethereum/ETH`, `solana/SOL`, `ripple/XRP`, `cardano/ADA`.
 - `fetchMarketSnapshot(signal)` batches CoinGecko `/coins/markets` and returns `{ source, sourceUrl, fetchedAt, assets }`. Each normalized asset includes `{ id, symbol, name, priceUsd, change24hPct, volume24hUsd, marketCapUsd, imageUrl, providerUpdatedAt, sparkline7d }`.
@@ -47,10 +47,11 @@ The keyless CoinGecko Public API rate limit varies with conditions (CoinGecko do
 
 Search code for the marker comments `ARCHITECTURE:` and `CHANGEPOINT:`. The principal seams are:
 
-1. `src/services/marketData.js`: provider IDs, provider URLs, request pacing, normalization, and historical candle contract.
-2. `src/App.jsx` and `src/hooks/useBinanceTradeStream.js`: shared CoinGecko polling and Binance live trade stream lifecycle.
-3. `src/services/backtest.js`: strategy signal timing, fees, portfolio aggregation.
-4. Page files: display and attribution only; do not add another per-page current-quote poll.
+1. `src/config/marketData.js`: provider endpoints/limits and the supported asset/pair list.
+2. `src/services/marketData.js`: request pacing, normalization, and historical candle contract.
+3. `src/App.jsx` and `src/hooks/useBinanceTradeStream.js`: shared CoinGecko polling and Binance live trade stream lifecycle.
+4. `src/services/backtest.js`: strategy signal timing, fees, portfolio aggregation.
+5. Page files: display and attribution only; do not add another per-page current-quote poll.
 
 If the market stream provider changes, retain the normalized `{ price, timestamp }` quote shape and keep reconnect/fallback behavior in the shared hook. The current public Binance stream needs no key; CoinGecko remains the REST source for aggregated market metadata. Keep provider secrets out of all `VITE_` variables if a paid provider/backend is added later.
 

@@ -1,23 +1,17 @@
-// ARCHITECTURE: Keep provider IDs, quote normalization, attribution, and REST calls here.
-export const MARKET_ASSETS = [
-  { id: "bitcoin", symbol: "BTC", name: "Bitcoin", binancePair: "BTCUSDT" },
-  { id: "ethereum", symbol: "ETH", name: "Ethereum", binancePair: "ETHUSDT" },
-  { id: "solana", symbol: "SOL", name: "Solana", binancePair: "SOLUSDT" },
-  { id: "ripple", symbol: "XRP", name: "XRP", binancePair: "XRPUSDT" },
-  { id: "cardano", symbol: "ADA", name: "Cardano", binancePair: "ADAUSDT" },
-];
+import { MARKET_ASSETS, MARKET_DATA_CONFIG } from "../config/marketData.js";
 
-export const COINGECKO_ATTRIBUTION_URL = "https://www.coingecko.com/en/api";
-export const BINANCE_MARKET_DATA_URL = "https://www.binance.com/en/markets";
-const API_BASE_URL = "https://api.coingecko.com/api/v3";
-const BINANCE_API_BASE_URL = "https://api.binance.com/api/v3";
-// The keyless Public API has a variable IP rate limit; keep this tab below five requests/minute.
-const MIN_REQUEST_GAP_MS = 13_000;
+export { MARKET_ASSETS };
+
+export const COINGECKO_ATTRIBUTION_URL = MARKET_DATA_CONFIG.coinGecko.attributionUrl;
+export const BINANCE_MARKET_DATA_URL = MARKET_DATA_CONFIG.binance.marketDataUrl;
 let requestQueue = Promise.resolve();
 let lastRequestStartedAt = 0;
 
 function waitForRequestSlot(signal) {
-  const waitMs = Math.max(0, MIN_REQUEST_GAP_MS - (Date.now() - lastRequestStartedAt));
+  const waitMs = Math.max(
+    0,
+    MARKET_DATA_CONFIG.coinGecko.minimumRequestGapMs - (Date.now() - lastRequestStartedAt)
+  );
   if (!waitMs) return Promise.resolve();
   return new Promise((resolve, reject) => {
     const timer = window.setTimeout(() => {
@@ -68,7 +62,10 @@ export async function fetchMarketSnapshot(signal) {
     price_change_percentage: "24h",
     sparkline: "true",
   });
-  const rows = await requestJson(`${API_BASE_URL}/coins/markets?${params}`, signal);
+  const rows = await requestJson(
+    `${MARKET_DATA_CONFIG.coinGecko.apiBaseUrl}${MARKET_DATA_CONFIG.coinGecko.marketsPath}?${params}`,
+    signal
+  );
   if (!Array.isArray(rows)) throw new Error("CoinGecko returned an invalid market response.");
 
   const byId = new Map(rows.map((row) => [row.id, row]));
@@ -103,15 +100,18 @@ export async function fetchPriceHistory(symbol, fromDate, toDate, signal) {
   while (startTime <= to) {
     const params = new URLSearchParams({
       symbol: asset.binancePair,
-      interval: "1d",
+      interval: MARKET_DATA_CONFIG.binance.candleInterval,
       startTime: String(startTime),
       endTime: String(to),
-      limit: "1000",
+      limit: String(MARKET_DATA_CONFIG.binance.candlesPerRequest),
     });
-    const response = await fetch(`${BINANCE_API_BASE_URL}/klines?${params}`, {
-      signal,
-      headers: { accept: "application/json" },
-    });
+    const response = await fetch(
+      `${MARKET_DATA_CONFIG.binance.apiBaseUrl}${MARKET_DATA_CONFIG.binance.klinesPath}?${params}`,
+      {
+        signal,
+        headers: { accept: "application/json" },
+      }
+    );
     if (!response.ok) {
       const error = new Error(`Binance returned HTTP ${response.status} for ${symbol} daily candles.`);
       error.status = response.status;
@@ -146,8 +146,12 @@ export async function fetchPriceHistory(symbol, fromDate, toDate, signal) {
       };
     }));
     const lastTimestamp = validRows.length ? Number(validRows.at(-1)[0]) : null;
-    if (validRows.length < 1000 || lastTimestamp === null || lastTimestamp >= to) break;
-    startTime = lastTimestamp + 86_400_000;
+    if (
+      validRows.length < MARKET_DATA_CONFIG.binance.candlesPerRequest ||
+      lastTimestamp === null ||
+      lastTimestamp >= to
+    ) break;
+    startTime = lastTimestamp + MARKET_DATA_CONFIG.binance.candleDurationMs;
   }
   return candles.sort((left, right) => left.timestamp - right.timestamp);
 }

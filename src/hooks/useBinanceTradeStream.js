@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
-import { MARKET_ASSETS } from "../services/marketData";
+import { MARKET_ASSETS, MARKET_DATA_CONFIG } from "../config/marketData.js";
 
-const BINANCE_STREAM_URL = "wss://data-stream.binance.vision/stream";
 const PAIR_TO_SYMBOL = new Map(MARKET_ASSETS.map(({ binancePair, symbol }) => [binancePair, symbol]));
 const STREAMS = MARKET_ASSETS.map(({ binancePair }) => `${binancePair.toLowerCase()}@trade`).join("/");
 
@@ -31,7 +30,7 @@ export default function useBinanceTradeStream(enabled) {
       if (disposed) return;
       setStatus("connecting");
       try {
-        socket = new WebSocket(`${BINANCE_STREAM_URL}?streams=${STREAMS}`);
+        socket = new WebSocket(`${MARKET_DATA_CONFIG.binance.streamBaseUrl}?streams=${STREAMS}`);
       } catch (error) {
         console.warn("Unable to open the Binance public trade stream:", error);
         scheduleReconnect();
