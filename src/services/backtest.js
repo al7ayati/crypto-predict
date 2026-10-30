@@ -1,10 +1,13 @@
-// ARCHITECTURE: Backtest math is isolated from UI so assumptions and execution timing stay reviewable.
-export const ROUND_TRIP_FEE_PCT = 0.2;
+import { ANALYTICS_CONFIG } from "../config/analytics.js";
 
-export function backtestMovingAverage(asset, dailyPrices, days = 60) {
+// ARCHITECTURE: Backtest math is isolated from UI so assumptions and execution timing stay reviewable.
+const { movingAveragePeriod } = ANALYTICS_CONFIG.backtest;
+export const ROUND_TRIP_FEE_PCT = ANALYTICS_CONFIG.backtest.roundTripFeePct;
+
+export function backtestMovingAverage(asset, dailyPrices, days = ANALYTICS_CONFIG.backtest.periodsDays.at(-1)) {
   const windowStart = dailyPrices.length > days ? dailyPrices.length - days : 0;
-  const data = dailyPrices.slice(Math.max(0, windowStart - 7));
-  if (data.length < 9) throw new Error(`Not enough daily observations to backtest ${asset}.`);
+  const data = dailyPrices.slice(Math.max(0, windowStart - movingAveragePeriod));
+  if (data.length < movingAveragePeriod + 2) throw new Error(`Not enough daily observations to backtest ${asset}.`);
   const firstOutputDate = data.at(-Math.min(days, data.length)).date;
   let inPosition = false;
   let entryPrice = null;
@@ -12,11 +15,13 @@ export function backtestMovingAverage(asset, dailyPrices, days = 60) {
   let dailyReturns = [];
   const trades = [];
 
-  for (let index = 7; index < data.length; index += 1) {
+  for (let index = movingAveragePeriod; index < data.length; index += 1) {
     const point = data[index];
     const previous = data[index - 1];
-    const average = data.slice(index - 6, index + 1).reduce((sum, row) => sum + row.price, 0) / 7;
-    const nextPosition = point.price > average && index < data.length - 1;
+    const average = data.slice(index - movingAveragePeriod + 1, index + 1)
+      .reduce((sum, row) => sum + row.price, 0) / movingAveragePeriod;
+    const atRangeEnd = index === data.length - 1;
+    const nextPosition = point.price > average && !atRangeEnd;
     let dailyReturn = inPosition ? point.price / previous.price - 1 : 0;
     if (nextPosition !== inPosition) {
       dailyReturn = (1 + dailyReturn) * (1 - ROUND_TRIP_FEE_PCT / 200) - 1;
@@ -26,7 +31,15 @@ export function backtestMovingAverage(asset, dailyPrices, days = 60) {
         entryDate = point.date;
       } else {
         const pnlPct = ((point.price / entryPrice) * (1 - ROUND_TRIP_FEE_PCT / 200) ** 2 - 1) * 100;
-        trades.push({ asset, signal: "Long → Cash", entryDate, date: point.date, entryPrice, exitPrice: point.price, pnlPct });
+        trades.push({
+          asset,
+          signal: atRangeEnd ? "Long → Cash (range end)" : "Long → Cash",
+          entryDate,
+          date: point.date,
+          entryPrice,
+          exitPrice: point.price,
+          pnlPct,
+        });
         inPosition = false;
         entryPrice = null;
         entryDate = null;
@@ -35,11 +48,6 @@ export function backtestMovingAverage(asset, dailyPrices, days = 60) {
     if (point.date >= firstOutputDate) dailyReturns.push({ date: point.date, return: dailyReturn });
   }
 
-  if (inPosition && entryPrice !== null) {
-    const final = data.at(-1);
-    const pnlPct = ((final.price / entryPrice) * (1 - ROUND_TRIP_FEE_PCT / 200) ** 2 - 1) * 100;
-    trades.push({ asset, signal: "Long → Cash (range end)", entryDate, date: final.date, entryPrice, exitPrice: final.price, pnlPct });
-  }
   return { asset, dailyReturns, trades };
 }
 

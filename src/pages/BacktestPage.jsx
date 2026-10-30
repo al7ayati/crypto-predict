@@ -2,15 +2,17 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Bar, BarChart, CartesianGrid, Cell, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ArrowDownRight, ArrowUpRight, ChartNoAxesCombined, CircleHelp } from "lucide-react";
+import { ANALYTICS_CONFIG } from "../config/analytics.js";
 import { BINANCE_MARKET_DATA_URL, fetchPriceHistory, MARKET_ASSETS, toDailyPrices } from "../services/marketData";
 import { backtestMovingAverage, ROUND_TRIP_FEE_PCT, summarizeBacktest } from "../services/backtest";
 import { formatUtcTimestamp } from "../utils/formatting";
 
-const startDate = () => new Date(Date.now() - 70 * 86_400_000).toISOString().slice(0, 10);
+const { backtest } = ANALYTICS_CONFIG;
+const startDate = () => new Date(Date.now() - backtest.historyLookbackCalendarDays * 86_400_000).toISOString().slice(0, 10);
 const endDate = () => new Date().toISOString().slice(0, 10);
 
 export default function BacktestPage() {
-  const [period, setPeriod] = useState(60);
+  const [period, setPeriod] = useState(backtest.periodsDays.at(-1));
   const [assetFilter, setAssetFilter] = useState("All");
   const [outcomeFilter, setOutcomeFilter] = useState("All");
   const [dateRange, setDateRange] = useState(() => ({ from: startDate(), to: endDate() }));
@@ -19,7 +21,7 @@ export default function BacktestPage() {
     const intervalId = window.setInterval(() => {
       const next = { from: startDate(), to: endDate() };
       setDateRange((current) => current.from === next.from && current.to === next.to ? current : next);
-    }, 60 * 60 * 1000);
+    }, backtest.refreshIntervalMs);
     return () => window.clearInterval(intervalId);
   }, []);
   const historyQuery = useQuery({
@@ -39,7 +41,7 @@ export default function BacktestPage() {
         fetchedAt: new Date().toISOString(),
       };
     },
-    refetchInterval: 60 * 60 * 1000,
+    refetchInterval: backtest.refreshIntervalMs,
   });
   const loaded = historyQuery.data?.loaded || [];
   const fetchedAt = historyQuery.data?.fetchedAt || null;
@@ -55,14 +57,14 @@ export default function BacktestPage() {
   const filteredTrades = summary.trades.filter((trade) => outcomeFilter === "All" || (trade.pnlPct >= 0 ? "Profit" : "Loss") === outcomeFilter);
   const metrics = [
     { label: `Net strategy return · ${period}D`, value: `${summary.totalReturnPct >= 0 ? "+" : ""}${summary.totalReturnPct.toFixed(2)}%`, note: "Equal-weight portfolio · after modeled fees" },
-    { label: "Closed hypothetical trades", value: String(summary.tradeCount), note: "7-day simple moving-average strategy" },
-    { label: "Winning trades", value: `${summary.winRatePct.toFixed(1)}%`, note: "Share of closed hypothetical trades" },
+    { label: "Closed hypothetical trades", value: String(summary.tradeCount), note: "Includes liquidation at the period end" },
+    { label: "Winning trades", value: summary.tradeCount ? `${summary.winRatePct.toFixed(1)}%` : "—", note: "Share of closed hypothetical trades" },
   ];
 
   return <div className="space-y-6">
     <section className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-      <div className="flex items-center gap-3"><span className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-700"><ChartNoAxesCombined size={21} /></span><div><h2 className="text-lg font-bold text-slate-900">Historical strategy replay</h2><p className="mt-1 text-xs text-slate-500">Hypothetical long-only 7-day moving-average rule using completed Binance Spot daily closes</p></div></div>
-      <div className="flex flex-wrap items-center gap-3"><label className="flex items-center gap-2 text-[10px] font-semibold text-slate-500"><span>Period</span><select value={period} onChange={(event) => setPeriod(Number(event.target.value))} aria-label="Backtest period" className="rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-[11px] font-semibold text-slate-700"><option value={30}>30D</option><option value={60}>60D</option></select></label><span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1.5 text-[10px] font-semibold text-blue-700 ring-1 ring-inset ring-blue-100"><CircleHelp size={13} />Price-based simulation</span></div>
+      <div className="flex items-center gap-3"><span className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-700"><ChartNoAxesCombined size={21} /></span><div><h2 className="text-lg font-bold text-slate-900">Historical strategy replay</h2><p className="mt-1 text-xs text-slate-500">Hypothetical long-only {backtest.movingAveragePeriod}-day moving-average rule using completed Binance Spot daily closes</p></div></div>
+      <div className="flex flex-wrap items-center gap-3"><label className="flex items-center gap-2 text-[10px] font-semibold text-slate-500"><span>Period</span><select value={period} onChange={(event) => setPeriod(Number(event.target.value))} aria-label="Backtest period" className="rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-[11px] font-semibold text-slate-700">{backtest.periodsDays.map((days) => <option key={days} value={days}>{days}D</option>)}</select></label><span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1.5 text-[10px] font-semibold text-blue-700 ring-1 ring-inset ring-blue-100"><CircleHelp size={13} />Price-based simulation</span></div>
     </section>
 
     {state === "loading" && <p className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-500">Loading up to five Binance daily candle series…</p>}
@@ -73,7 +75,7 @@ export default function BacktestPage() {
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
         <div className="mb-4"><h3 className="text-base font-bold text-slate-900">Weekly portfolio return</h3><p className="mt-1 text-xs text-slate-500">Compounded equal-weight strategy return for each UTC week · percent</p></div>
         <div className="h-[260px] w-full"><ResponsiveContainer width="100%" height="100%"><BarChart data={summary.weeklyReturns} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}><CartesianGrid stroke="#edf1f7" strokeDasharray="4 5" vertical={false} /><XAxis dataKey="week" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: "#8290a5" }} /><YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: "#8290a5" }} tickFormatter={(value) => `${value}%`} width={45} /><ReferenceLine y={0} stroke="#94a3b8" strokeWidth={1.25} /><Tooltip formatter={(value) => [`${Number(value).toFixed(2)}%`, "Weekly return"]} contentStyle={{ borderRadius: 12, borderColor: "#e5ebf4", fontSize: 12 }} /><Bar dataKey="returnPct" name="Weekly return" radius={[5, 5, 0, 0]} maxBarSize={38}>{summary.weeklyReturns.map((entry) => <Cell key={entry.week} fill={entry.returnPct >= 0 ? "#2563eb" : "#df5365"} />)}</Bar></BarChart></ResponsiveContainer></div>
-        <p className="mt-3 text-[10px] leading-5 text-slate-400">A buy signal occurs when the daily observed price closes above its trailing 7-observation simple moving average; a sell signal occurs below it. Signals take effect after the observed close. A {(ROUND_TRIP_FEE_PCT / 2).toFixed(1)}% fee per fill is modeled ({ROUND_TRIP_FEE_PCT.toFixed(1)}% round trip). No slippage, exchange execution, spreads, taxes, or OHLC data are modeled.</p>
+        <p className="mt-3 text-[10px] leading-5 text-slate-400">A buy signal occurs when the daily observed price closes above its trailing {backtest.movingAveragePeriod}-observation simple moving average; a sell signal occurs below it. Signals take effect after the observed close, with an idealized close-price fill. Open positions are liquidated at the final close. A {(ROUND_TRIP_FEE_PCT / 2).toFixed(1)}% fee per fill is modeled ({ROUND_TRIP_FEE_PCT.toFixed(1)}% round trip). No slippage, spreads, taxes, benchmark comparison, or risk-adjusted returns are modeled.</p>
       </section>
 
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">

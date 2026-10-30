@@ -9,7 +9,7 @@
 
 ## Source and data contracts
 
-Provider settings and supported assets live in `src/config/marketData.js`. Keep provider URLs, public request limits, candle interval/page size, and asset-to-market-pair mappings there. `src/services/marketData.js` owns request handling, response validation, and normalization:
+Provider settings and supported assets live in `src/config/marketData.js`. Keep provider URLs, public request limits, candle interval/page size, and asset-to-market-pair mappings there. `src/config/analytics.js` centralizes chart horizons, indicator periods/thresholds, and backtest lookbacks/fees. `src/services/marketData.js` owns request handling, response validation, and normalization:
 
 - `MARKET_ASSETS`: `bitcoin/BTC`, `ethereum/ETH`, `solana/SOL`, `ripple/XRP`, `cardano/ADA`.
 - `fetchMarketSnapshot(signal)` batches CoinGecko `/coins/markets` and returns `{ source, sourceUrl, fetchedAt, assets }`. Each normalized asset includes `{ id, symbol, name, priceUsd, change24hPct, volume24hUsd, marketCapUsd, imageUrl, providerUpdatedAt, sparkline7d }`.
@@ -33,11 +33,13 @@ The keyless CoinGecko Public API rate limit varies with conditions (CoinGecko do
 
 ### Predictions
 
-`src/pages/PredictionPage.jsx` loads the latest 30 days of completed Binance Spot daily closes through the shared TanStack Query key used by Historical Data. It shows the actual daily series and a baseline endpoint calculated from the mean of the last seven daily log returns: `target = lastHistoricalPrice × exp(meanDailyLogReturn × horizonDays)`. Horizon controls are 1, 7, and 30 days. EMA, Bollinger bands, and RSI are calculated from the displayed daily prices. The baseline is not a trained/validated forecasting model and must not be called an AI prediction or used as a trade signal.
+`src/pages/PredictionPage.jsx` requests 251 calendar dates of Binance Spot daily closes (refreshed every five minutes and rolled forward hourly), filters out the forming candle, then charts the latest 90 completed closes. The longer series warms up EMA 20/50; each EMA is seeded with its initial period SMA. The 20-period Bollinger bands use the population standard deviation and are hidden until 20 observations exist. RSI uses Wilder's 14-period smoothing, starts after 14 price changes, maps a flat period to 50, and is displayed in a separate 0–100 chart with conventional 30/70 reference lines. TanStack Query uses the same symbol/date-range key format as Historical Data; only an exact range match reuses the same cache entry.
+
+The baseline uses the latest seven observed log-return intervals and divides their summed log return by elapsed UTC calendar days before compounding over 1/7/30 calendar days: `target = lastHistoricalPrice × exp(sum(log(Pt/Pt-1)) / elapsedDays × horizonDays)`. It is a transparent scenario, not a trained/validated forecast, confidence interval, or trade signal. If provider candles are missing, the denominator reflects elapsed calendar days rather than assuming observations are evenly spaced.
 
 ### Backtest
 
-`src/services/backtest.js` contains the strategy and summary math; `src/pages/BacktestPage.jsx` owns the request and UI. The app requests up to five completed Binance daily candle series, including a seven-observation warm-up, and replays a long-only 7-observation SMA rule. The first seven observations warm up the SMA and do not count toward the selected 30/60-day return. At each close, price above the trailing average opens/holds a position; price below closes it. The next daily close change is attributed to the prior position. A modeled 0.1% fee applies on each entry/exit. Assets are equal-weighted across available daily observations; filters recompute the displayed portfolio. Results are hypothetical and price-based, not actual orders or evidence of future results. `ROUND_TRIP_FEE_PCT` is the central fee assumption.
+`src/services/backtest.js` contains the strategy and summary math; `src/pages/BacktestPage.jsx` owns the request and UI. The app requests up to five completed Binance daily candle series, including a seven-observation warm-up, and replays a long-only 7-observation SMA rule. The first seven observations warm up the SMA and do not count toward the selected 30/60-day return. At each close, price above the trailing average opens/holds a position; price below closes it. Close-price fills are idealized; the next daily close change is attributed to the prior position. Any open position is liquidated at the final close. A modeled 0.1% fee applies on each entry/exit. Assets are equal-weighted across available daily observations; filters recompute the displayed portfolio. Results do not include benchmark or risk-adjusted comparisons and are hypothetical—not actual orders or evidence of future results. `ROUND_TRIP_FEE_PCT` is the central fee assumption.
 
 ### Auth and navigation
 
@@ -48,17 +50,18 @@ The keyless CoinGecko Public API rate limit varies with conditions (CoinGecko do
 Search code for the marker comments `ARCHITECTURE:` and `CHANGEPOINT:`. The principal seams are:
 
 1. `src/config/marketData.js`: provider endpoints/limits and the supported asset/pair list.
-2. `src/services/marketData.js`: request pacing, normalization, and historical candle contract.
-3. `src/App.jsx` and `src/hooks/useBinanceTradeStream.js`: shared CoinGecko polling and Binance live trade stream lifecycle.
-4. `src/services/backtest.js`: strategy signal timing, fees, portfolio aggregation.
-5. Page files: display and attribution only; do not add another per-page current-quote poll.
+2. `src/config/analytics.js`: forecast horizons, indicator periods/thresholds, and backtest assumptions.
+3. `src/services/marketData.js`: request pacing, normalization, and historical candle contract.
+4. `src/App.jsx` and `src/hooks/useBinanceTradeStream.js`: shared CoinGecko polling and Binance live trade stream lifecycle.
+5. `src/services/technicalIndicators.js` and `src/services/backtest.js`: testable indicator, signal timing, fee, and portfolio math.
+6. Page files: display and attribution only; do not add another per-page current-quote poll.
 
 If the market stream provider changes, retain the normalized `{ price, timestamp }` quote shape and keep reconnect/fallback behavior in the shared hook. The current public Binance stream needs no key; CoinGecko remains the REST source for aggregated market metadata. Keep provider secrets out of all `VITE_` variables if a paid provider/backend is added later.
 
 ## Verification and release
 
 - Install with `npm ci`, run the service tests with `npm test`, and build with `npm run build`.
-- Unit tests cover Binance OHLCV parsing, 1,000-candle pagination, UTC daily collapsing, and invalid input handling. For signed-in browser smoke checks, inspect Dashboard, all five Historical Data assets, Predictions, Backtest filters/periods, and CSV output. Check provider timestamps and the reported source when the Binance stream is unavailable.
+- Unit tests cover Binance OHLCV parsing/pagination, UTC daily collapsing, config contracts, indicator lookbacks and edge cases, log-return horizon math, and backtest fee/portfolio calculations. For signed-in browser smoke checks, inspect Dashboard, all five Historical Data assets, Predictions, Backtest filters/periods, and CSV output. Check provider timestamps and the reported source when the Binance stream is unavailable.
 - Deploy only after `.env.local` contains the Firebase Web App config for the target project: `firebase use crypto-predict-app`, `npm run build`, `firebase deploy --only hosting`.
 - Firebase Hosting deploy does not configure Authentication providers or authorized domains; those settings stay in Firebase Console.
 
