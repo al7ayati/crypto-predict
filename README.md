@@ -2,6 +2,8 @@
 
 Crypto Predict is a React/Vite cryptocurrency analytics app hosted as a static single-page app on Firebase Hosting. It uses Firebase Authentication, the keyless CoinGecko Public API for aggregated market metadata, and Binance public Spot REST/WebSocket market feeds for exchange-level prices and candles. It does not require a paid market-data account, API key, Cloud Run relay, or Firebase Realtime Database.
 
+The app is installable as a Progressive Web App on supported browsers. Android and desktop browsers can show a native install prompt; on iPhone/iPad, use the browser Share menu → Add to Home Screen. The service worker caches the app shell and static assets only; market data, sign-in, and alerts still require an internet connection. This is a responsive web app/PWA, not separate native iOS or Android apps.
+
 ## Data integrity
 
 - The Dashboard gets CoinGecko 24-hour change/volume, market caps, provider timestamps, and icons for BTC, ETH, SOL, XRP, and ADA in one batched `/coins/markets` request. Seven-day trends and daily-close comparisons use eight completed Binance Spot 1d candles (seven elapsed UTC days) for each `SYMBOL/USDT` pair; incomplete candles, missing dates, and USDT/USD differences are kept explicit. Tracked market cap is the sum of those five CoinGecko-reported asset market caps; it is not total crypto market capitalization.
@@ -67,5 +69,3 @@ See [DEVELOPER_HANDOFF.md](./DEVELOPER_HANDOFF.md) for page behavior, data contr
 - [Binance Spot WebSocket market streams](https://developers.binance.com/docs/binance-spot-api-docs/web-socket-streams)
 
 Forecast scenarios and hypothetical backtest results are for educational analysis only and are not financial advice.
-
-The app is installable as a Progressive Web App on supported browsers. Android and desktop browsers can show a native install prompt; on iPhone/iPad, use the browser Share menu → Add to Home Screen. The service worker caches the app shell and static assets only; market data, sign-in, and alerts still require an internet connection. This is a responsive web app/PWA, not separate native iOS or Android apps.
