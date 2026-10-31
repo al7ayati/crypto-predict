@@ -4,6 +4,7 @@ export { MARKET_ASSETS };
 
 export const COINGECKO_ATTRIBUTION_URL = MARKET_DATA_CONFIG.coinGecko.attributionUrl;
 export const BINANCE_MARKET_DATA_URL = MARKET_DATA_CONFIG.binance.marketDataUrl;
+export const BINANCE_KLINES_DOCUMENTATION_URL = MARKET_DATA_CONFIG.binance.klinesDocumentationUrl;
 let requestQueue = Promise.resolve();
 let lastRequestStartedAt = 0;
 
@@ -54,13 +55,12 @@ function getUtcDateTimestamp(value, endOfDay = false) {
   return timestamp + (endOfDay ? 86_399_999 : 0);
 }
 
-// CHANGEPOINT: One batched request supplies every current quote and its 7-day sparkline.
+// CHANGEPOINT: One batched request supplies current market metadata for every tracked asset.
 export async function fetchMarketSnapshot(signal) {
   const params = new URLSearchParams({
     vs_currency: "usd",
     ids: MARKET_ASSETS.map(({ id }) => id).join(","),
     price_change_percentage: "24h",
-    sparkline: "true",
   });
   const rows = await requestJson(
     `${MARKET_DATA_CONFIG.coinGecko.apiBaseUrl}${MARKET_DATA_CONFIG.coinGecko.marketsPath}?${params}`,
@@ -82,7 +82,6 @@ export async function fetchMarketSnapshot(signal) {
       marketCapUsd: Number.isFinite(row.market_cap) ? row.market_cap : null,
       imageUrl: typeof row.image === "string" ? row.image : null,
       providerUpdatedAt: row.last_updated || null,
-      sparkline7d: Array.isArray(row.sparkline_in_7d?.price) ? row.sparkline_in_7d.price.filter(Number.isFinite) : [],
     };
   });
   return { source: "CoinGecko", sourceUrl: COINGECKO_ATTRIBUTION_URL, fetchedAt: new Date().toISOString(), assets };
@@ -154,6 +153,43 @@ export async function fetchPriceHistory(symbol, fromDate, toDate, signal) {
     startTime = lastTimestamp + MARKET_DATA_CONFIG.binance.candleDurationMs;
   }
   return candles.sort((left, right) => left.timestamp - right.timestamp);
+}
+
+export async function fetchSevenDayCandles(symbol, now = Date.now(), signal) {
+  if (!Number.isFinite(now)) throw new Error("Choose a valid market-data timestamp.");
+  const currentUtcDate = new Date(now);
+  const toDate = currentUtcDate.toISOString().slice(0, 10);
+  const fromUtcDate = new Date(Date.UTC(
+    currentUtcDate.getUTCFullYear(),
+    currentUtcDate.getUTCMonth(),
+    currentUtcDate.getUTCDate() - 8
+  ));
+  const fromDate = fromUtcDate.toISOString().slice(0, 10);
+  const candles = await fetchPriceHistory(symbol, fromDate, toDate, signal);
+  return candles
+    .filter((candle) => candle.candleCloseTime < now)
+    .slice(-8);
+}
+
+export function calculateDailyPerformance(candles) {
+  if (!Array.isArray(candles)) {
+    return { candles: [], dailyChangePct: null, sevenDayChangePct: null };
+  }
+  const dailyCandles = candles.slice(-8);
+  const isOneDayInterval = dailyCandles.length >= 2 &&
+    dailyCandles.at(-1).timestamp - dailyCandles.at(-2).timestamp === MARKET_DATA_CONFIG.binance.candleDurationMs;
+  const isSevenDayInterval = dailyCandles.length === 8 &&
+    dailyCandles.every((candle, index) =>
+      index === 0 ||
+      candle.timestamp - dailyCandles[index - 1].timestamp === MARKET_DATA_CONFIG.binance.candleDurationMs
+    );
+  const dailyChangePct = isOneDayInterval
+    ? ((dailyCandles.at(-1).close / dailyCandles.at(-2).close) - 1) * 100
+    : null;
+  const sevenDayChangePct = isSevenDayInterval
+    ? ((dailyCandles.at(-1).close / dailyCandles[0].close) - 1) * 100
+    : null;
+  return { candles: dailyCandles, dailyChangePct, sevenDayChangePct };
 }
 
 // Keep the newest observation per UTC date if a provider returns more than one point per day.

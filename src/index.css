@@ -451,6 +451,77 @@ body { background: #f3f5f1; }
 .market-overview-table th, .market-overview-table td { white-space: nowrap; }
 .backtest-trades-table th, .backtest-trades-table td { white-space: nowrap; }
 
+.brand-mark { position: relative; overflow: hidden; }
+.brand-mark::after { position: absolute; inset: 1px; border: 1px solid rgba(255,255,255,.28); border-radius: inherit; content: ""; pointer-events: none; }
+.brand-mark svg { filter: drop-shadow(0 1px 2px rgba(8, 29, 82, .2)); }
+.dashboard-page { --dashboard-accent: #386af5; --dashboard-ink: #152543; }
+.dashboard-stat-card { position: relative; overflow: hidden; transition: transform .18s ease, box-shadow .18s ease; }
+.dashboard-stat-card::after { position: absolute; top: -34px; right: -34px; width: 100px; height: 100px; border-radius: 50%; background: radial-gradient(circle, rgba(56,106,245,.075), transparent 70%); content: ""; pointer-events: none; }
+.dashboard-stat-card:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(28,52,91,.08); }
+.daily-insights-section { padding: clamp(17px, 2.5vw, 26px); overflow: hidden; border: 1px solid #e4eaf5; border-radius: 22px; background: radial-gradient(ellipse at 92% 0%, rgba(116,155,255,.12), transparent 31%), linear-gradient(140deg, #f8faff 0%, #fff 47%, #f6f9ff 100%); box-shadow: 0 12px 34px rgba(28,52,91,.045); }
+.daily-insights-heading, .daily-trend-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.daily-insights-heading { margin-bottom: 17px; }
+.dashboard-kicker { display: block; margin-bottom: 5px; color: #6381c2; font-size: 9px; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
+.daily-insights-heading h2 { margin: 0; color: var(--dashboard-ink); font-size: clamp(19px, 2vw, 23px); font-weight: 750; letter-spacing: -.045em; }
+.daily-insights-heading p:not(.dashboard-kicker) { max-width: 580px; margin: 6px 0 0; color: #7d8ba2; font-size: 11px; line-height: 1.6; }
+.daily-data-badge, .comparison-count { display: inline-flex; align-items: center; gap: 7px; padding: 7px 10px; border: 1px solid #e1e9fa; border-radius: 999px; background: rgba(255,255,255,.8); color: #64799e; font-size: 9px; font-weight: 700; white-space: nowrap; }
+.daily-data-badge > span { width: 7px; height: 7px; border-radius: 50%; background: #15a77c; box-shadow: 0 0 0 3px rgba(21,167,124,.12); }
+.pulse-card-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 11px; }
+.pulse-card { position: relative; display: grid; min-width: 0; grid-template-columns: 30px 1fr; align-items: center; gap: 2px 9px; padding: 14px; border: 1px solid rgba(223,231,245,.9); border-radius: 15px; background: rgba(255,255,255,.88); box-shadow: 0 5px 16px rgba(32,55,94,.025); }
+.pulse-card-icon { display: grid; width: 29px; height: 29px; grid-row: span 2; place-items: center; border-radius: 9px; color: #5478ce; background: #edf3ff; }
+.pulse-card.is-positive .pulse-card-icon { color: #168260; background: #e9f8f2; }
+.pulse-card.is-negative .pulse-card-icon { color: #c24d60; background: #fff0f2; }
+.pulse-card-label { overflow: hidden; color: #8a97aa; font-size: 9px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.pulse-card > strong { overflow: hidden; color: #1d2c49; font-size: 14px; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
+.pulse-card-value { grid-column: 2; color: #53647f; font-size: 10px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.pulse-card-description { grid-column: 1 / -1; overflow: hidden; padding-top: 8px; border-top: 1px solid #f0f3f8; margin-top: 7px; color: #96a1b2; font-size: 9px; line-height: 1.45; text-overflow: ellipsis; }
+.daily-analysis-grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(260px, .85fr); gap: 12px; margin-top: 12px; }
+.daily-trend-panel, .daily-comparison-panel { min-width: 0; padding: 16px; border: 1px solid #e5ebf5; border-radius: 16px; background: rgba(255,255,255,.94); }
+.daily-trend-heading { align-items: center; }
+.daily-trend-heading h3 { margin: 0; color: #243450; font-size: 13px; font-weight: 750; letter-spacing: -.02em; }
+.trend-symbol-picker { position: relative; display: inline-flex; align-items: center; padding: 0 9px; border: 1px solid #e4eaf3; border-radius: 9px; background: #fff; }
+.trend-symbol-picker select { min-height: 34px; padding: 0 3px; border: 0; outline-offset: 1px; background: transparent; color: #425572; font-size: 10px; font-weight: 700; }
+.daily-trend-summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 12px; margin: 14px 0 2px; }
+.daily-trend-summary strong { color: #17815f; font-size: 21px; font-weight: 800; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+.daily-trend-summary strong.is-negative { color: #be4356; }
+.daily-trend-summary strong.is-positive { color: #17815f; }
+.daily-trend-summary span { color: #8996aa; font-size: 9px; }
+.daily-trend-chart { width: 100%; height: 225px; margin: 2px 0 0; }
+.daily-trend-empty { display: grid; min-height: 225px; place-items: center; padding: 24px; color: #8290a6; text-align: center; font-size: 11px; line-height: 1.6; }
+.daily-close-details { padding-top: 8px; border-top: 1px solid #edf1f7; color: #6f7f98; }
+.daily-close-details summary { width: fit-content; color: #5573b2; cursor: pointer; font-size: 9px; font-weight: 700; }
+.daily-close-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px 12px; padding-top: 10px; }
+.daily-close-list > span { display: flex; justify-content: space-between; gap: 8px; color: #8b97a9; font-size: 9px; }
+.daily-close-list strong { color: #42536f; font-weight: 700; font-variant-numeric: tabular-nums; }
+.daily-trend-footnote, .comparison-footnote { margin: 10px 0 0; color: #909caf; font-size: 9px; line-height: 1.55; }
+.comparison-table-wrap { width: 100%; overflow-x: auto; }
+.comparison-table { width: 100%; border-collapse: collapse; margin-top: 11px; text-align: left; }
+.comparison-table th, .comparison-table td { padding: 9px 5px; border-bottom: 1px solid #eff2f7; font-size: 10px; }
+.comparison-table thead th { color: #98a3b4; font-size: 8px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.comparison-table tbody td { color: #51617b; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.comparison-table .is-positive, .market-overview-table .is-positive { color: #15815f; }
+.comparison-table .is-negative, .market-overview-table .is-negative { color: #c34458; }
+.comparison-asset-button { display: flex; align-items: center; gap: 6px; padding: 2px 0; border: 0; background: transparent; color: #233550; cursor: pointer; text-align: left; }
+.comparison-asset-button > span { font-size: 10px; font-weight: 800; }
+.comparison-asset-button small { color: #9aa5b5; font-size: 8px; font-weight: 500; }
+.comparison-asset-button:hover > span { color: var(--dashboard-accent); }
+.daily-query-warning { padding: 8px 9px; border-radius: 8px; margin: 9px 0 0; background: #fff8e9; color: #896b36; font-size: 9px; line-height: 1.5; }
+.metric-guide { margin-top: 12px; padding: 12px 14px; border: 1px solid #e5ebf5; border-radius: 12px; background: rgba(255,255,255,.75); }
+.metric-guide summary { display: flex; width: fit-content; align-items: center; gap: 7px; color: #657895; cursor: pointer; font-size: 10px; font-weight: 700; list-style: none; }
+.metric-guide summary::-webkit-details-marker { display: none; }
+.metric-guide summary svg { color: #6684c8; }
+.metric-guide-content { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; padding-top: 11px; }
+.metric-guide-content p { margin: 0; padding: 10px; border-radius: 9px; background: #f7f9fd; color: #7f8ba0; font-size: 9px; line-height: 1.55; }
+.metric-guide-content strong { color: #435572; }
+.daily-source-links { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 15px; padding: 10px 2px 0; color: #8c98aa; font-size: 9px; line-height: 1.5; }
+.daily-source-links a { color: #5273b8; font-weight: 700; text-decoration: underline; text-decoration-color: #c4d2ec; text-underline-offset: 2px; }
+.daily-source-links a:hover { color: #214fbd; }
+
+@media (max-width: 900px) {
+  .daily-analysis-grid { grid-template-columns: minmax(0, 1fr); }
+  .metric-guide-content { grid-template-columns: minmax(0, 1fr); }
+}
+
 @media (max-width: 930px) {
   .sidebar {
     position: fixed; inset: 0 auto 0 0; z-index: 45; display: flex; width: min(300px, 86vw); height: 100dvh;
@@ -544,6 +615,14 @@ body { background: #f3f5f1; }
   .backtest-trades-table tbody td { display: flex; min-width: 0; align-items: baseline; justify-content: space-between; gap: 7px; padding: 7px 0; border: 0; white-space: normal; text-align: right; font-size: 11px; }
   .backtest-trades-table tbody td::before { content: attr(data-label); color: #65756a; font-size: 10px; font-weight: 600; text-align: left; }
   .backtest-trades-table tbody tr > td[colspan] { grid-column: 1 / -1; justify-content: center; }
+  .daily-insights-heading { align-items: flex-start; flex-direction: column; }
+  .daily-insights-heading > .daily-data-badge { align-self: flex-start; }
+  .pulse-card-grid { grid-template-columns: minmax(0, 1fr); }
+  .pulse-card { grid-template-columns: 30px minmax(0, 1fr); }
+  .daily-trend-panel, .daily-comparison-panel { padding: 13px; }
+  .daily-trend-chart, .daily-trend-empty { height: 205px; min-height: 205px; }
+  .daily-close-list { grid-template-columns: minmax(0, 1fr); }
+  .daily-source-links { align-items: flex-start; flex-direction: column; }
 }
 
 @media (max-width: 390px) {
@@ -552,6 +631,10 @@ body { background: #f3f5f1; }
   .range-weekday, .range-day-empty, .range-day { height: 26px; font-size: 9px; }
   .market-overview-table tbody tr { padding: 9px; }
   .market-overview-table tbody td { gap: 5px; font-size: 10px; }
+  .daily-insights-section { padding: 14px; border-radius: 17px; }
+  .daily-trend-summary { gap: 4px 8px; }
+  .daily-trend-summary strong { font-size: 19px; }
+  .comparison-asset-button { flex-wrap: wrap; gap: 3px 6px; }
 }
 
 @media (max-width: 390px) {

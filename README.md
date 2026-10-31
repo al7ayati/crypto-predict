@@ -4,7 +4,7 @@ Crypto Predict is a React/Vite cryptocurrency analytics app hosted as a static s
 
 ## Data integrity
 
-- The Dashboard gets 24-hour change/volume, market caps, provider timestamps, icons, and 7-day sparklines for BTC, ETH, SOL, XRP, and ADA in one batched CoinGecko `/coins/markets` request. Tracked market cap is the sum of those five CoinGecko-reported asset market caps; it is not total crypto market capitalization.
+- The Dashboard gets CoinGecko 24-hour change/volume, market caps, provider timestamps, and icons for BTC, ETH, SOL, XRP, and ADA in one batched `/coins/markets` request. Seven-day trends and daily-close comparisons use eight completed Binance Spot 1d candles (seven elapsed UTC days) for each `SYMBOL/USDT` pair; incomplete candles, missing dates, and USDT/USD differences are kept explicit. Tracked market cap is the sum of those five CoinGecko-reported asset market caps; it is not total crypto market capitalization.
 - When available, the Dashboard's latest trade price is streamed from Binance Spot `BTCUSDT`, `ETHUSDT`, `SOLUSDT`, `XRPUSDT`, and `ADAUSDT` public trade streams. It falls back to the CoinGecko aggregated USD quote if the stream is unavailable or the last trade becomes stale. USDT is not assumed to be exactly USD.
 - CoinGecko market metadata is refreshed once per minute while the signed-in app is open. A manual refresh is available. The providers control their own underlying data freshness; client polling is not a second-by-second feed.
 - CoinGecko's public API rate limit varies by conditions. The client queues its CoinGecko requests at least 13 seconds apart, but other users sharing an IP can still affect the available quota. A 429 is shown to the user and the app waits for the next scheduled poll or manual refresh.

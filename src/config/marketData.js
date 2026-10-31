@@ -17,6 +17,7 @@ export const MARKET_DATA_CONFIG = Object.freeze({
     apiBaseUrl: "https://api.binance.com/api/v3",
     streamBaseUrl: "wss://data-stream.binance.vision/stream",
     marketDataUrl: "https://www.binance.com/en/markets",
+    klinesDocumentationUrl: "https://developers.binance.com/docs/binance-spot-api-docs/rest-api/market-data-endpoints#klinecandlestick-data",
     klinesPath: "/klines",
     candleInterval: "1d",
     candlesPerRequest: 1_000,

@@ -1,6 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { fetchPriceHistory, toDailyPrices } from "./marketData.js";
+import {
+  calculateDailyPerformance,
+  fetchPriceHistory,
+  fetchSevenDayCandles,
+  toDailyPrices,
+} from "./marketData.js";
 
 function candle(timestamp, close = 105) {
   return [
@@ -49,6 +54,51 @@ test("fetchPriceHistory normalizes Binance UTC OHLCV candle fields", async () =>
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test("fetchSevenDayCandles returns eight completed UTC daily closes and excludes today's forming candle", async () => {
+  const originalFetch = globalThis.fetch;
+  const now = Date.UTC(2026, 0, 10, 12);
+  const start = Date.UTC(2026, 0, 2);
+  let requestUrl;
+  globalThis.fetch = async (url) => {
+    requestUrl = new URL(url);
+    return {
+      ok: true,
+      json: async () => Array.from({ length: 9 }, (_, index) => candle(start + index * 86_400_000, 100 + index)),
+    };
+  };
+
+  try {
+    const result = await fetchSevenDayCandles("BTC", now);
+    assert.equal(requestUrl.searchParams.get("symbol"), "BTCUSDT");
+    assert.equal(requestUrl.searchParams.get("interval"), "1d");
+    assert.equal(requestUrl.searchParams.get("startTime"), String(start));
+    assert.equal(requestUrl.searchParams.get("endTime"), String(Date.UTC(2026, 0, 10) + 86_399_999));
+    assert.equal(result.length, 8);
+    assert.equal(result[0].date, "2026-01-02");
+    assert.equal(result.at(-1).date, "2026-01-09");
+    assert.ok(result.every((item) => item.candleCloseTime < now));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("calculateDailyPerformance compares one day and seven elapsed UTC days without filling gaps", () => {
+  const start = Date.UTC(2026, 0, 2);
+  const candles = Array.from({ length: 8 }, (_, index) => ({
+    timestamp: start + index * 86_400_000,
+    close: 100 + index,
+  }));
+  const performance = calculateDailyPerformance(candles);
+  assert.equal(performance.dailyChangePct, ((107 / 106) - 1) * 100);
+  assert.ok(Math.abs(performance.sevenDayChangePct - 7) < 1e-10);
+  assert.equal(performance.candles.length, 8);
+
+  const gap = calculateDailyPerformance(candles.filter((_, index) => index !== 6));
+  assert.equal(gap.dailyChangePct, null);
+  assert.equal(gap.sevenDayChangePct, null);
+  assert.equal(gap.candles.length, 7);
 });
 
 test("fetchPriceHistory paginates ranges beyond Binance's 1,000 candle limit", async () => {
