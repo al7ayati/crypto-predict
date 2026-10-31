@@ -285,9 +285,6 @@ export default function App() {
                 }}
               />
             )}
-            <button type="button" className="create-alert-trigger" onClick={() => openAlertComposer(selectedSymbol)}>
-              <BellPlus size={15} aria-hidden="true" /><span>Create alert</span>
-            </button>
           </div>
           <LiveDataStatus
             marketData={marketData}

@@ -222,8 +222,8 @@ button:disabled { opacity: .65; cursor: not-allowed; }
 }
 .topbar { flex-wrap: wrap; }
 .topbar-actions { flex-wrap: wrap; }
-.create-alert-trigger, .dashboard-alert-button { display: inline-flex; min-height: 36px; align-items: center; justify-content: center; gap: 7px; padding: 0 11px; border: 1px solid #dfe7f4; border-radius: 10px; background: #fff; color: #536b9a; cursor: pointer; font-size: 10px; font-weight: 700; white-space: nowrap; transition: border-color .16s ease, color .16s ease, background .16s ease; }
-.create-alert-trigger:hover, .dashboard-alert-button:hover { border-color: #b7c9f0; background: #f6f8ff; color: #315cc0; }
+.dashboard-alert-button { display: inline-flex; min-height: 36px; align-items: center; justify-content: center; gap: 7px; padding: 0 11px; border: 1px solid #dfe7f4; border-radius: 10px; background: #fff; color: #536b9a; cursor: pointer; font-size: 10px; font-weight: 700; white-space: nowrap; transition: border-color .16s ease, color .16s ease, background .16s ease; }
+.dashboard-alert-button:hover { border-color: #b7c9f0; background: #f6f8ff; color: #315cc0; }
 .live-data-status { display: flex; width: 100%; min-width: 0; align-items: center; gap: 10px; padding: 9px 12px; border: 1px solid rgba(115,145,204,.16); border-radius: 13px; background: linear-gradient(110deg, #0d1d3d, #152b53 68%, #183365); color: #e8efff; box-shadow: 0 5px 16px rgba(11,27,59,.08); }
 .live-data-orb { display: grid; width: 30px; height: 30px; flex: 0 0 auto; place-items: center; border: 1px solid rgba(153,177,226,.2); border-radius: 9px; color: #a9c1ff; background: rgba(255,255,255,.07); }
 .live-data-copy { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 3px; }
@@ -362,7 +362,6 @@ button:disabled { opacity: .65; cursor: not-allowed; }
   .live-data-refresh-button { grid-column: 3; grid-row: 1 / span 2; }
   .live-data-copy { grid-column: 2; grid-row: 1; }
   .live-data-orb { grid-column: 1; grid-row: 1 / span 2; }
-  .create-alert-trigger { flex: 1; }
   .daily-insights-actions { justify-content: flex-start; }
   .prediction-risk-card { padding: 16px; }
   .alert-modal-backdrop { align-items: end; padding: 10px; }
