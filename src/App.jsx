@@ -1,13 +1,17 @@
 import React, { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import { onAuthStateChanged, signOut } from "firebase/auth";
-import { ChevronDown, Menu, X } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { BellPlus, ChevronDown, Menu, X } from "lucide-react";
 import { auth } from "./firebase";
 import { fetchMarketSnapshot, MARKET_ASSETS } from "./services/marketData";
 import useBinanceTradeStream from "./hooks/useBinanceTradeStream";
+import usePriceSignalAlerts from "./hooks/usePriceSignalAlerts";
 
 import AuthPage from "./pages/AuthPage";
 import Sidebar from "./components/Sidebar";
 import DateRangePicker from "./components/DateRangePicker";
+import CreateAlertModal from "./components/CreateAlertModal";
+import LiveDataStatus from "./components/LiveDataStatus";
 import DashboardPage from "./pages/DashboardPage";
 import HistoricalPage from "./pages/HistoricalPages";
 const BacktestPage = lazy(() => import("./pages/BacktestPage"));
@@ -34,6 +38,7 @@ function getNavFromPath(pathname) {
 }
 
 export default function App() {
+  const queryClient = useQueryClient();
   const [user, setUser] = useState(undefined);
   const [selectedSymbol, setSelectedSymbol] = useState("BTC");
   const [marketData, setMarketData] = useState({ status: "loading", snapshot: null, error: "" });
@@ -44,7 +49,15 @@ export default function App() {
   const [signOutBusy, setSignOutBusy] = useState(false);
   const [signOutError, setSignOutError] = useState("");
   const [authError, setAuthError] = useState("");
+  const [alertModalOpen, setAlertModalOpen] = useState(false);
+  const [alertDefaultSymbol, setAlertDefaultSymbol] = useState("BTC");
+  const [dismissedToastAlertId, setDismissedToastAlertId] = useState(null);
   const { prices: liveTradePrices, status: tradeStreamStatus } = useBinanceTradeStream(Boolean(user));
+  const alertState = usePriceSignalAlerts({
+    liveTradePrices,
+    tradeStreamStatus,
+    enabled: Boolean(user),
+  });
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(
@@ -77,6 +90,21 @@ export default function App() {
       }));
     }
   }, []);
+
+  const refreshAllMarketData = useCallback(() => {
+    refreshMarket();
+    void queryClient.invalidateQueries({ queryKey: ["dashboard-daily-trend"] });
+    void queryClient.invalidateQueries({ queryKey: ["market-history"] });
+  }, [queryClient, refreshMarket]);
+
+  const openAlertComposer = useCallback((symbol = selectedSymbol) => {
+    setAlertDefaultSymbol(MARKET_ASSETS.some((asset) => asset.symbol === symbol) ? symbol : "BTC");
+    setAlertModalOpen(true);
+  }, [selectedSymbol]);
+  const closeAlertComposer = useCallback(() => setAlertModalOpen(false), []);
+  const freshAlertPrices = Object.fromEntries(Object.entries(liveTradePrices).filter(([, quote]) =>
+    tradeStreamStatus === "live" && quote && Date.now() - quote.timestamp < 60_000
+  ));
 
   useEffect(() => {
     if (!user) {
@@ -153,7 +181,7 @@ export default function App() {
   const renderActivePage = () => {
     switch (activeNav) {
       case "dashboard":
-        return <DashboardPage marketData={marketData} liveTradePrices={liveTradePrices} tradeStreamStatus={tradeStreamStatus} onRefresh={() => refreshMarket()} />;
+        return <DashboardPage marketData={marketData} liveTradePrices={liveTradePrices} tradeStreamStatus={tradeStreamStatus} onRefresh={refreshAllMarketData} onCreateAlert={openAlertComposer} />;
       case "historical":
         return (
           <HistoricalPage
@@ -165,7 +193,7 @@ export default function App() {
       case "backtest":
         return <BacktestPage />;
       case "prediction":
-        return <PredictionPage assetData={currentAssetData} />;
+        return <PredictionPage assetData={currentAssetData} onCreateAlert={openAlertComposer} />;
       default:
         return <DashboardPage />;
     }
@@ -257,7 +285,17 @@ export default function App() {
                 }}
               />
             )}
+            <button type="button" className="create-alert-trigger" onClick={() => openAlertComposer(selectedSymbol)}>
+              <BellPlus size={15} aria-hidden="true" /><span>Create alert</span>
+            </button>
           </div>
+          <LiveDataStatus
+            marketData={marketData}
+            tradeStreamStatus={tradeStreamStatus}
+            liveTradePrices={liveTradePrices}
+            refreshing={marketData.status === "refreshing"}
+            onRefresh={refreshAllMarketData}
+          />
         </header>
 
         <div className="page-content" key={activeNav}>
@@ -270,6 +308,27 @@ export default function App() {
           <span>Crypto Predict · Analytics workspace</span>
           <span>Forecasts are for educational purposes only.</span>
         </footer>
+        {alertState.recentlyTriggered && alertState.recentlyTriggered.id !== dismissedToastAlertId && (
+          <aside className="market-alert-toast" role="status" aria-live="polite">
+            <span className="market-alert-toast-icon"><BellPlus size={16} aria-hidden="true" /></span>
+            <span><strong>Market alert triggered</strong><small>{alertState.recentlyTriggered.symbol} · {alertState.recentlyTriggered.type === "signal"
+              ? `Daily signal is now ${alertState.recentlyTriggered.targetSignal.replace("_", " ")}`
+              : `Price crossed ${alertState.recentlyTriggered.type === "price_above" ? "above" : "below"} ${alertState.recentlyTriggered.targetPrice} USDT`}</small></span>
+            <button type="button" onClick={() => setDismissedToastAlertId(alertState.recentlyTriggered.id)} aria-label="Dismiss market alert notification"><X size={15} /></button>
+          </aside>
+        )}
+        <CreateAlertModal
+          open={alertModalOpen}
+          onClose={closeAlertComposer}
+          defaultSymbol={alertDefaultSymbol}
+          currentPrices={freshAlertPrices}
+          signals={alertState.signals}
+          alerts={alertState.alerts}
+          error={alertState.error}
+          notificationError={alertState.notificationError}
+          onCreate={alertState.addAlert}
+          onRemove={alertState.removeAlert}
+        />
       </main>
     </div>
   );

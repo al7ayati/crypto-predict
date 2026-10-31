@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  calculateDailyTrendSignal,
+  calculateRiskMetrics,
   calculateTechnicalIndicators,
   calculateTrendBaseline,
 } from "./technicalIndicators.js";
@@ -60,4 +62,30 @@ test("trend baseline rejects invalid horizons and invalid observations", () => {
   assert.throws(() => calculateTrendBaseline(series, 0), /positive whole number/);
   assert.throws(() => calculateTrendBaseline(series.slice(0, 7), 7), /8 completed daily observations/);
   assert.throws(() => calculateTrendBaseline(observations([1, 1, 1, 1, 1, 1, 1, 0]), 7), /positive prices/);
+});
+
+test("risk metrics use contiguous 20-day realized volatility and directional scenario levels", () => {
+  const series = observations(Array.from({ length: 21 }, (_, index) => 100 + index));
+  const metrics = calculateRiskMetrics(series, 120, 7, 130);
+  const shortMetrics = calculateRiskMetrics(series, 120, 7, 110);
+
+  assert.ok(metrics);
+  assert.equal(metrics.takeProfit, 130);
+  assert.ok(metrics.stopLoss < 120);
+  assert.ok(metrics.riskRewardRatio > 0);
+  assert.equal(shortMetrics.takeProfit, 110);
+  assert.ok(shortMetrics.stopLoss > 120);
+  assert.equal(metrics.volatilityWindowDays, 20);
+  assert.equal(calculateRiskMetrics(observations(Array(21).fill(100)), 100, 7, 100).stopLoss, null);
+  assert.equal(calculateRiskMetrics(series.slice(0, 20), 120, 7, 130), null);
+  assert.equal(calculateRiskMetrics(series.filter((_, index) => index !== 10), 120, 7, 130), null);
+  assert.equal(calculateRiskMetrics(series, 120, 0, 130), null);
+});
+
+test("daily trend signal is a transparent technical rule and needs complete indicators", () => {
+  assert.equal(calculateDailyTrendSignal({ actual: 120, ema20: 115, ema50: 110, rsi: 60 }, 0.01), "strong_buy");
+  assert.equal(calculateDailyTrendSignal({ actual: 80, ema20: 85, ema50: 90, rsi: 40 }, -0.01), "strong_sell");
+  assert.equal(calculateDailyTrendSignal({ actual: 120, ema20: 115, ema50: 110, rsi: 60 }, -0.01), "buy");
+  assert.equal(calculateDailyTrendSignal({ actual: 100, ema20: 100, ema50: 95, rsi: 50 }, 0), "neutral");
+  assert.equal(calculateDailyTrendSignal({ actual: 120, ema20: null, ema50: null, rsi: null }, 0.01), null);
 });

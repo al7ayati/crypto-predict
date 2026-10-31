@@ -4,6 +4,7 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   BarChart3,
+  BellPlus,
   Coins,
   Gauge,
   Info,
@@ -85,7 +86,7 @@ function PulseCard({ label, asset, value, tone = "neutral", description }) {
   </article>;
 }
 
-export default function DashboardPage({ marketData, liveTradePrices = {}, tradeStreamStatus = "offline", onRefresh }) {
+export default function DashboardPage({ marketData, liveTradePrices = {}, tradeStreamStatus = "offline", onRefresh, onCreateAlert }) {
   const [selectedTrendSymbol, setSelectedTrendSymbol] = useState("BTC");
   const snapshot = marketData.snapshot;
   const bySymbol = new Map((snapshot?.assets || []).map((asset) => [asset.symbol, asset]));
@@ -187,7 +188,10 @@ export default function DashboardPage({ marketData, liveTradePrices = {}, tradeS
           <h2 id="market-pulse-heading">Market Pulse</h2>
           <p>Daily-close movement across the five tracked assets. No forecast or imputed values.</p>
         </div>
-        <span className="daily-data-badge"><span /> Binance Spot · 1D</span>
+        <div className="daily-insights-actions">
+          <span className="daily-data-badge"><span /> Binance Spot · 1D</span>
+          <button type="button" className="dashboard-alert-button" onClick={() => onCreateAlert?.(selectedTrendSymbol)}><BellPlus size={14} /> Create alert</button>
+        </div>
       </div>
       <div className="pulse-card-grid">
         <PulseCard

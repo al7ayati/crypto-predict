@@ -1,7 +1,9 @@
 import { ANALYTICS_CONFIG } from "../config/analytics.js";
 
-const { emaPeriods, bollingerPeriod, bollingerStandardDeviations, rsiPeriod } = ANALYTICS_CONFIG.indicators;
+const { emaPeriods, bollingerPeriod, bollingerStandardDeviations, rsiPeriod, rsiOversold, rsiOverbought } = ANALYTICS_CONFIG.indicators;
 const DAY_MS = 86_400_000;
+const VOLATILITY_WINDOW_DAYS = 20;
+const ANNUALIZED_VOLATILITY_THRESHOLDS = Object.freeze({ low: 50, medium: 100 });
 
 function calculateRsi(averageGain, averageLoss) {
   if (averageGain === 0 && averageLoss === 0) return 50;
@@ -117,4 +119,92 @@ export function calculateTrendBaseline(observations, horizonDays) {
     targetPrice,
     estimatedChangePct: (targetPrice / lastPrice - 1) * 100,
   };
+}
+
+export function calculateRiskMetrics(observations, entryPrice, horizonDays, targetPrice) {
+  if (
+    !Array.isArray(observations) ||
+    !Number.isFinite(entryPrice) ||
+    entryPrice <= 0 ||
+    !Number.isInteger(horizonDays) ||
+    horizonDays < 1 ||
+    !Number.isFinite(targetPrice) ||
+    targetPrice <= 0
+  ) {
+    return null;
+  }
+  const recent = observations.slice(-(VOLATILITY_WINDOW_DAYS + 1));
+  if (recent.length < VOLATILITY_WINDOW_DAYS + 1) return null;
+
+  const dailyLogReturns = [];
+  for (let index = 1; index < recent.length; index += 1) {
+    const previous = recent[index - 1];
+    const current = recent[index];
+    const elapsedMs = current.timestamp - previous.timestamp;
+    const previousPrice = previous.price ?? previous.actual;
+    const currentPrice = current.price ?? current.actual;
+    if (
+      elapsedMs !== DAY_MS ||
+      !Number.isFinite(previousPrice) ||
+      previousPrice <= 0 ||
+      !Number.isFinite(currentPrice) ||
+      currentPrice <= 0
+    ) {
+      return null;
+    }
+    dailyLogReturns.push(Math.log(currentPrice / previousPrice));
+  }
+
+  const mean = dailyLogReturns.reduce((sum, value) => sum + value, 0) / dailyLogReturns.length;
+  const variance = dailyLogReturns.reduce((sum, value) => sum + (value - mean) ** 2, 0) / (dailyLogReturns.length - 1);
+  const dailyVolatility = Math.sqrt(variance);
+  const annualizedVolatilityPct = dailyVolatility * Math.sqrt(365) * 100;
+  const horizonVolatilityPct = dailyVolatility * Math.sqrt(horizonDays) * 100;
+  const riskLevel = annualizedVolatilityPct < ANNUALIZED_VOLATILITY_THRESHOLDS.low
+    ? "low"
+    : annualizedVolatilityPct < ANNUALIZED_VOLATILITY_THRESHOLDS.medium
+      ? "medium"
+      : "high";
+  const direction = targetPrice >= entryPrice ? 1 : -1;
+  const stopDistance = entryPrice * dailyVolatility * Math.sqrt(horizonDays) * 1.5;
+  const stopLoss = entryPrice - direction * stopDistance;
+  const riskRewardRatio = stopDistance > 0
+    ? Math.abs(targetPrice - entryPrice) / stopDistance
+    : null;
+
+  return {
+    annualizedVolatilityPct,
+    horizonVolatilityPct,
+    riskLevel,
+    stopLoss: stopDistance > 0 && stopLoss > 0 ? stopLoss : null,
+    takeProfit: targetPrice,
+    riskRewardRatio,
+    volatilityWindowDays: VOLATILITY_WINDOW_DAYS,
+    annualizedRiskThresholds: ANNUALIZED_VOLATILITY_THRESHOLDS,
+  };
+}
+
+export function calculateDailyTrendSignal(latestIndicator, meanDailyLogReturn) {
+  if (
+    !latestIndicator ||
+    !Number.isFinite(latestIndicator.actual) ||
+    !Number.isFinite(latestIndicator.ema20) ||
+    !Number.isFinite(latestIndicator.ema50) ||
+    !Number.isFinite(latestIndicator.rsi) ||
+    !Number.isFinite(meanDailyLogReturn)
+  ) {
+    return null;
+  }
+  const bullishStack = latestIndicator.actual > latestIndicator.ema20 &&
+    latestIndicator.ema20 > latestIndicator.ema50;
+  const bearishStack = latestIndicator.actual < latestIndicator.ema20 &&
+    latestIndicator.ema20 < latestIndicator.ema50;
+  const positiveTrend = meanDailyLogReturn > 0;
+  const negativeTrend = meanDailyLogReturn < 0;
+
+  if (bullishStack && positiveTrend && latestIndicator.rsi >= 50 && latestIndicator.rsi < rsiOverbought) return "strong_buy";
+  if (bearishStack && negativeTrend && latestIndicator.rsi <= 50 && latestIndicator.rsi > rsiOversold) return "strong_sell";
+  if (latestIndicator.actual > latestIndicator.ema20 && latestIndicator.rsi > 50 && latestIndicator.rsi < rsiOverbought) return "buy";
+  if (latestIndicator.actual < latestIndicator.ema20 && latestIndicator.rsi < 50 && latestIndicator.rsi > rsiOversold) return "sell";
+  return "neutral";
 }

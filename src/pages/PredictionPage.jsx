@@ -1,9 +1,15 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useId, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { AlertTriangle, BellPlus, Info } from "lucide-react";
 import { ANALYTICS_CONFIG } from "../config/analytics.js";
 import { BINANCE_MARKET_DATA_URL, fetchPriceHistory, toDailyPrices } from "../services/marketData";
-import { calculateTechnicalIndicators, calculateTrendBaseline } from "../services/technicalIndicators";
+import {
+  calculateDailyTrendSignal,
+  calculateRiskMetrics,
+  calculateTechnicalIndicators,
+  calculateTrendBaseline,
+} from "../services/technicalIndicators";
 import { formatUtcTimestamp } from "../utils/formatting";
 
 const { prediction, indicators: indicatorConfig } = ANALYTICS_CONFIG;
@@ -22,6 +28,13 @@ const formatUsdPrice = (value) => new Intl.NumberFormat("en-US", {
   style: "currency", currency: "USD", minimumFractionDigits: value < 1 ? 4 : 2,
   maximumFractionDigits: value < 1 ? 8 : 2,
 }).format(value);
+const signalLabels = {
+  strong_buy: "Strong Buy",
+  buy: "Buy",
+  neutral: "Neutral",
+  sell: "Sell",
+  strong_sell: "Strong Sell",
+};
 
 function formatHistoryLabel(date) {
   return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "2-digit", timeZone: "UTC" }).format(new Date(`${date}T00:00:00Z`));
@@ -35,7 +48,22 @@ function getHistoryRange() {
   };
 }
 
-export default function PredictionPage({ assetData }) {
+function FeatureTooltip({ label, children }) {
+  const tooltipId = useId();
+  const [isOpen, setIsOpen] = useState(false);
+  return <span className="feature-tooltip-wrap">
+    <button type="button" className="feature-tooltip-trigger" aria-label={`About ${label}`} aria-describedby={tooltipId} aria-expanded={isOpen} onClick={() => setIsOpen((open) => !open)}>
+      <Info size={13} aria-hidden="true" />
+    </button>
+    <span className={`feature-tooltip${isOpen ? " is-open" : ""}`} id={tooltipId} role="tooltip">{children}</span>
+  </span>;
+}
+
+function formatRiskLevel(level) {
+  return level ? `${level[0].toUpperCase()}${level.slice(1)} risk` : "Unavailable";
+}
+
+export default function PredictionPage({ assetData, onCreateAlert }) {
   const [horizon, setHorizon] = useState(HORIZONS[1]);
   const [visibleIndicators, setVisibleIndicators] = useState([]);
   const [range, setRange] = useState(getHistoryRange);
@@ -80,10 +108,25 @@ export default function PredictionPage({ assetData }) {
     const visibleHistory = indicators.slice(-prediction.chartHistoryDays);
     const chart = visibleHistory.concat(futureRows.map((point) => ({ ...point, ema20: null, ema50: null, bollingerUpper: null, bollingerLower: null, rsi: null })));
     const hasCurrentQuote = Number.isFinite(assetData.currentPrice);
+    const riskMetrics = calculateRiskMetrics(observations, last.price, horizon.days, baseline.targetPrice);
+    const trendSignal = calculateDailyTrendSignal(indicators.at(-1), baseline.meanDailyLogReturn);
+    const recentObservations = observations.slice(-prediction.baselineObservationIntervals - 1);
+    const weightedIntervals = recentObservations.slice(1).map((current, index) => {
+      const previous = recentObservations[index];
+      const elapsedDays = (current.timestamp - previous.timestamp) / 86_400_000;
+      const logReturnPct = Math.log(current.price / previous.price) * 100;
+      return {
+        startDate: previous.date,
+        endDate: current.date,
+        elapsedDays,
+        logReturnPct,
+        weightPct: 100 / prediction.baselineObservationIntervals,
+      };
+    });
     return { chart, lastPrice: hasCurrentQuote ? assetData.currentPrice : last.price, lastPriceQuote: hasCurrentQuote ? assetData.currentPriceQuote : "USDT", historyPrice: last.price, rsi: indicators.at(-1)?.rsi, meanReturnPct: baseline.meanDailyLogReturnPct,
       targetPrice: baseline.targetPrice, estimatedChangePct: baseline.estimatedChangePct,
-      observationDate: last.date };
-  }, [assetData.currentPrice, horizon.days, observations]);
+      riskMetrics, trendSignal, weightedIntervals, observationDate: last.date };
+  }, [assetData.currentPrice, assetData.currentPriceQuote, horizon.days, observations]);
 
   const toggleIndicator = (indicator) => setVisibleIndicators((current) => current.includes(indicator)
     ? current.filter((value) => value !== indicator)
@@ -127,16 +170,90 @@ export default function PredictionPage({ assetData }) {
         </div>}
         <p className="mt-3 text-[10px] leading-5 text-slate-400">{error ? `Showing cached candles; refresh failed: ${error}. ` : ""}Source: Binance Spot API · latest completed daily candle {analysis.observationDate} UTC · fetched {formatUtcTimestamp(fetchedAt)}.</p>
       </section>
-      <aside className="space-y-5">
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h3 className="text-sm font-bold text-slate-900">Trend calculation</h3><div className="mt-4 space-y-3 border-t border-slate-100 pt-4 text-xs">
-          <div className="flex justify-between gap-3"><span className="text-slate-500">Latest market quote</span><strong>{analysis.lastPriceQuote === "USDT" ? formatPrice(analysis.lastPrice) : formatUsdPrice(analysis.lastPrice)}</strong></div>
-          <p className="text-right text-[10px] text-slate-400">{assetData.currentPriceSource || "CoinGecko"} · {formatUtcTimestamp(assetData.marketUpdatedAt)}{assetData.marketStatus === "stale" ? " · quote may be stale" : ""}</p>
-          <div className="flex justify-between gap-3"><span className="text-slate-500">Latest historical observation</span><strong>{formatPrice(analysis.historyPrice)}</strong></div>
-          <div className="flex justify-between gap-3"><span className="text-slate-500">{horizon.label} baseline endpoint</span><strong>{formatPrice(analysis.targetPrice)}</strong></div>
-          <div className="flex justify-between gap-3"><span className="text-slate-500">Implied change</span><strong className={analysis.estimatedChangePct >= 0 ? "text-emerald-700" : "text-rose-700"}>{analysis.estimatedChangePct >= 0 ? "+" : ""}{analysis.estimatedChangePct.toFixed(2)}%</strong></div>
-          <div className="flex justify-between gap-3"><span className="text-slate-500">Mean daily log return ({prediction.baselineObservationIntervals} intervals)</span><strong>{analysis.meanReturnPct >= 0 ? "+" : ""}{analysis.meanReturnPct.toFixed(3)}%</strong></div>
-        </div><p className="mt-4 text-[10px] leading-5 text-slate-400">The baseline uses the cumulative log return across the latest {prediction.baselineObservationIntervals} observed intervals, divided by elapsed calendar days, then compounds that daily rate over the selected horizon. It does not estimate probability or confidence.</p></section>
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h3 className="text-sm font-bold text-slate-900">Data provenance</h3><p className="mt-2 text-xs leading-5 text-slate-500">Historical series and baseline use completed Binance Spot daily closes in USDT. The latest market quote is labeled with its source and quote currency. Exchange prices can differ from global aggregated USD prices. No sentiment inputs or unpublished model data are used.</p><a href={BINANCE_MARKET_DATA_URL} target="_blank" rel="noreferrer" className="mt-3 inline-block text-[10px] font-semibold text-slate-500 underline underline-offset-2">Binance market data</a></section>
+      <aside className="prediction-insights-column">
+        <section className="prediction-risk-card" aria-labelledby="risk-scenario-heading">
+          <div className="prediction-risk-heading">
+            <span className="prediction-risk-icon"><AlertTriangle size={17} aria-hidden="true" /></span>
+            <div><p className="prediction-risk-kicker">Scenario risk framework</p><h3 id="risk-scenario-heading">Risk-managed levels</h3></div>
+          </div>
+          <div className="risk-level-row">
+            <span>Realized volatility risk</span>
+            <strong className={`risk-level-badge is-${analysis.riskMetrics?.riskLevel || "unavailable"}`}>
+              {formatRiskLevel(analysis.riskMetrics?.riskLevel)}
+            </strong>
+          </div>
+          {analysis.riskMetrics ? (
+            <>
+              <div className="risk-meter" role="meter" aria-label="Annualized realized volatility risk" aria-valuemin={0} aria-valuemax={150} aria-valuenow={Math.min(150, analysis.riskMetrics.annualizedVolatilityPct)} aria-valuetext={`${formatRiskLevel(analysis.riskMetrics.riskLevel)}, annualized realized volatility ${analysis.riskMetrics.annualizedVolatilityPct.toFixed(1)} percent`}>
+                <span className="risk-meter-fill" style={{ left: `${Math.min(96, analysis.riskMetrics.annualizedVolatilityPct / 150 * 100)}%` }} />
+              </div>
+              <div className="risk-meter-legend"><span>Low · &lt;50%</span><span>Medium · 50–100%</span><span>High · ≥100%</span></div>
+              <p className="risk-volatility-note">{analysis.riskMetrics.annualizedVolatilityPct.toFixed(1)}% annualized historical volatility · {analysis.riskMetrics.horizonVolatilityPct.toFixed(2)}% estimated range over {horizon.label}</p>
+            </>
+          ) : <p className="risk-volatility-note">Requires 21 consecutive completed daily closes to estimate volatility risk.</p>}
+
+          <div className="risk-levels-list">
+            <div><span>Reference entry · latest daily close</span><strong>{formatPrice(analysis.historyPrice)}</strong></div>
+            <div><span>Scenario target / take profit</span><strong>{formatPrice(analysis.targetPrice)}</strong></div>
+            <div><span>Volatility-based stop level</span><strong>{analysis.riskMetrics?.stopLoss ? formatPrice(analysis.riskMetrics.stopLoss) : "Unavailable"}</strong></div>
+            <div><span>Scenario reward / risk</span><strong>{Number.isFinite(analysis.riskMetrics?.riskRewardRatio) ? `${analysis.riskMetrics.riskRewardRatio.toFixed(2)} : 1` : "Unavailable"}</strong></div>
+            <div><span>Implied baseline change</span><strong className={analysis.estimatedChangePct >= 0 ? "is-positive" : "is-negative"}>{analysis.estimatedChangePct >= 0 ? "+" : ""}{analysis.estimatedChangePct.toFixed(2)}%</strong></div>
+          </div>
+          <button type="button" className="prediction-create-alert" onClick={() => onCreateAlert?.(assetData.symbol)}>
+            <BellPlus size={15} aria-hidden="true" /> Create a price or signal alert
+          </button>
+          <p className="prediction-risk-disclaimer">Illustrative scenario levels, not trade instructions. Stop distance = 1.5 × 20-day sample volatility × √horizon; target = the historical trend baseline endpoint. Risk bands use annualized volatility thresholds (&lt;50%, 50–100%, ≥100%). Not financial advice.</p>
+        </section>
+
+        <section className="model-weighting-card" aria-labelledby="model-weighting-heading">
+          <div className="model-weighting-heading">
+            <div><p className="prediction-risk-kicker">Explainable calculation</p><h3 id="model-weighting-heading">Model Weighting &amp; Feature Importance</h3></div>
+            <FeatureTooltip label="Model weighting">This is a deterministic historical trend baseline, not a trained or AI model. The seven observed log-return intervals are equally weighted in the cumulative return.</FeatureTooltip>
+          </div>
+          <p className="model-weighting-intro">Each of the latest {prediction.baselineObservationIntervals} observed log-return intervals contributes equally to the baseline trend. The sum is divided by actual elapsed UTC days before compounding.</p>
+          <div className="feature-weight-list">
+            {analysis.weightedIntervals.map((interval, index) => (
+              <div className="feature-weight-row" key={`${interval.startDate}-${interval.endDate}`}>
+                <div className="feature-weight-label">
+                  <span>{interval.startDate.slice(5)} → {interval.endDate.slice(5)}</span>
+                  <FeatureTooltip label={`${interval.startDate} through ${interval.endDate}`}>
+                    Log return = ln({interval.endDate} close ÷ {interval.startDate} close) = {interval.logReturnPct >= 0 ? "+" : ""}{interval.logReturnPct.toFixed(3)}%. This observed return interval receives one of {prediction.baselineObservationIntervals} equal weights in the total log return; it spans {interval.elapsedDays} UTC calendar day(s).
+                  </FeatureTooltip>
+                  <strong>{interval.weightPct.toFixed(1)}%</strong>
+                </div>
+                <div className="feature-weight-track" role="progressbar" aria-label={`Historical interval ${index + 1} baseline weight`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={interval.weightPct}>
+                  <span style={{ width: `${interval.weightPct}%` }} />
+                </div>
+                <span className={`feature-return-value ${interval.logReturnPct >= 0 ? "is-positive" : "is-negative"}`}>
+                  {interval.logReturnPct >= 0 ? "+" : ""}{interval.logReturnPct.toFixed(2)}% log return
+                </span>
+              </div>
+            ))}
+          </div>
+          <div className="context-only-features">
+            <h4>Context only · 0% target weight</h4>
+            <p><FeatureTooltip label="Technical indicator context">RSI is Wilder-smoothed over 14 price changes. EMA20 and EMA50 use their configured lookback windows. Bollinger bands use the configured 20-close population standard deviation. These are chart overlays only; they do not influence the projected target.</FeatureTooltip> RSI14, EMA20/50, and Bollinger bands are not inputs to this baseline.</p>
+            <p><FeatureTooltip label="Unavailable external factors">No on-chain flow, derivatives positioning, order-book imbalance, news, or sentiment feed is connected to this app.</FeatureTooltip> On-chain flow and market sentiment are not connected; no weights are invented for unavailable data.</p>
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h3 className="text-sm font-bold text-slate-900">Trend calculation</h3>
+          <div className="mt-4 space-y-3 border-t border-slate-100 pt-4 text-xs">
+            <div className="flex justify-between gap-3"><span className="text-slate-500">Latest market quote</span><strong>{analysis.lastPriceQuote === "USDT" ? formatPrice(analysis.lastPrice) : formatUsdPrice(analysis.lastPrice)}</strong></div>
+            <p className="text-right text-[10px] text-slate-400">{assetData.currentPriceSource || "CoinGecko"} · {formatUtcTimestamp(assetData.marketUpdatedAt)}{assetData.marketStatus === "stale" ? " · quote may be stale" : ""}</p>
+            <div className="flex justify-between gap-3"><span className="text-slate-500">Latest historical observation</span><strong>{formatPrice(analysis.historyPrice)}</strong></div>
+            <div className="flex justify-between gap-3"><span className="text-slate-500">{horizon.label} baseline endpoint</span><strong>{formatPrice(analysis.targetPrice)}</strong></div>
+            <div className="flex justify-between gap-3"><span className="text-slate-500">Mean daily log return ({prediction.baselineObservationIntervals} intervals)</span><strong>{analysis.meanReturnPct >= 0 ? "+" : ""}{analysis.meanReturnPct.toFixed(3)}%</strong></div>
+            <div className="flex justify-between gap-3"><span className="text-slate-500">Rule-based daily context</span><strong className={`trend-signal-label is-${analysis.trendSignal || "unavailable"}`}>{signalLabels[analysis.trendSignal] || "Unavailable"}</strong></div>
+          </div>
+          <p className="mt-4 text-[10px] leading-5 text-slate-400">The baseline uses the cumulative log return across the latest {prediction.baselineObservationIntervals} observed intervals, divided by elapsed calendar days, then compounds that daily rate over the selected horizon. It does not estimate probability or confidence.</p>
+        </section>
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h3 className="text-sm font-bold text-slate-900">Data provenance</h3>
+          <p className="mt-2 text-xs leading-5 text-slate-500">Historical series and baseline use completed Binance Spot daily closes in USDT. The latest market quote is labeled with its source and quote currency. Exchange prices can differ from global aggregated USD prices. The daily context label is a fixed technical rule using EMA20/50, RSI14, and baseline direction—not trained AI or investment advice.</p>
+          <a href={BINANCE_MARKET_DATA_URL} target="_blank" rel="noreferrer" className="mt-3 inline-block text-[10px] font-semibold text-slate-500 underline underline-offset-2">Binance market data</a>
+        </section>
       </aside>
     </div>}
   </div>;
