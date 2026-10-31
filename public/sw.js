@@ -15,7 +15,7 @@ self.addEventListener("install", (event) => {
         await cache.addAll(APP_SHELL);
         const shell = await cache.match("/");
         const html = await shell.text();
-        const assets = [...html.matchAll(/(?:src|href)="([^"]+\/assets\/[^"]+)"/g)]
+        const assets = [...html.matchAll(/(?:src|href)="(\/assets\/[^"]+)"/g)]
           .map((match) => match[1]);
         if (assets.length) await cache.addAll(assets);
       })
