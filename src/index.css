@@ -347,6 +347,22 @@ button:disabled { opacity: .65; cursor: not-allowed; }
 .saved-alerts-empty, .saved-alerts-disclaimer { color: #91a3c2; font-size: 8px; line-height: 1.6; }
 .saved-alerts-empty { margin: 9px 0; }
 .saved-alerts-disclaimer { margin: 10px 0 0; color: #798eaf; }
+.pwa-install-button { display: flex; width: 100%; min-height: 42px; align-items: center; gap: 10px; padding: 0 12px; border: 1px solid rgba(151,180,236,.16); border-radius: 10px; margin-top: 13px; background: rgba(99,142,225,.1); color: #d9e6ff; cursor: pointer; font-size: 10px; font-weight: 700; text-align: left; }
+.pwa-install-button:hover { border-color: rgba(151,180,236,.32); background: rgba(99,142,225,.17); }
+.pwa-install-error { margin: 6px 2px 0; color: #ffc1c8; font-size: 9px; line-height: 1.5; }
+.pwa-install-backdrop { position: fixed; z-index: 90; inset: 0; display: grid; place-items: center; padding: 18px; background: rgba(5,13,29,.62); backdrop-filter: blur(5px); }
+.pwa-install-dialog { position: relative; width: min(100%, 390px); padding: 25px; border: 1px solid #e3eaf5; border-radius: 19px; background: #fff; color: #172541; box-shadow: 0 24px 70px rgba(4,13,29,.3); animation: alert-modal-in .18s ease-out; }
+.pwa-install-close { position: absolute; top: 12px; right: 12px; display: grid; width: 36px; height: 36px; place-items: center; border: 0; border-radius: 10px; background: #f3f6fb; color: #70809a; cursor: pointer; }
+.pwa-install-dialog-icon { display: grid; width: 42px; height: 42px; place-items: center; border-radius: 13px; background: #eaf1ff; color: #155eef; }
+.pwa-install-eyebrow { margin: 17px 0 5px; color: #5a76ad; font-size: 9px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+.pwa-install-dialog h2 { max-width: 290px; margin: 0; color: #15233e; font-size: 20px; line-height: 1.35; letter-spacing: -.035em; }
+.pwa-install-dialog ol { display: grid; gap: 12px; padding: 0; margin: 20px 0; list-style: none; }
+.pwa-install-dialog li { display: flex; align-items: center; gap: 9px; color: #61708a; font-size: 12px; line-height: 1.5; }
+.pwa-install-dialog li > span { display: grid; width: 23px; height: 23px; flex: 0 0 auto; place-items: center; border-radius: 8px; background: #eef3ff; color: #315fc2; font-size: 10px; font-weight: 800; }
+.pwa-install-dialog li strong { color: #273858; }
+.pwa-install-dialog li svg { flex: 0 0 auto; color: #315fc2; }
+.pwa-install-note { padding: 10px 11px; border-radius: 9px; margin: 0 0 15px; background: #f5f7fb; color: #78869c; font-size: 10px; line-height: 1.5; }
+.pwa-install-done { width: 100%; min-height: 44px; border: 0; border-radius: 11px; background: linear-gradient(110deg, #155eef, #3979ef); color: #fff; cursor: pointer; font-size: 11px; font-weight: 750; }
 .market-alert-toast { position: fixed; z-index: 75; right: max(20px, env(safe-area-inset-right)); bottom: max(20px, env(safe-area-inset-bottom)); display: flex; width: min(390px, calc(100vw - 32px)); align-items: center; gap: 10px; padding: 12px; border: 1px solid rgba(123,158,228,.25); border-radius: 13px; background: linear-gradient(120deg, #102247, #0d1a35); color: #eef4ff; box-shadow: 0 15px 40px rgba(7,18,40,.28); animation: alert-modal-in .18s ease-out; }
 .market-alert-toast-icon { display: grid; width: 30px; height: 30px; flex: 0 0 auto; place-items: center; border-radius: 9px; background: rgba(91,134,221,.16); color: #b6ccff; }
 .market-alert-toast > span:nth-child(2) { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 3px; }
@@ -368,12 +384,12 @@ button:disabled { opacity: .65; cursor: not-allowed; }
   .alert-modal { width: 100%; max-height: 92dvh; padding: 16px; border-radius: 18px 18px 12px 12px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .live-data-status.is-live .live-data-copy strong > i, .alert-modal-backdrop, .alert-modal { animation: none; }
+  .live-data-status.is-live .live-data-copy strong > i, .alert-modal-backdrop, .alert-modal, .pwa-install-dialog, .market-alert-toast { animation: none; }
 }
 
 @media (max-width: 930px) {
-  .app-layout { flex-direction: column; }
-  .sidebar { position: sticky; top: 0; z-index: 15; width: 100%; min-height: 0; height: auto; flex: 0 0 auto; padding: 12px 16px 10px; }
+  .app-layout { min-height: 100svh; flex-direction: column; }
+  .sidebar { position: sticky; top: 0; z-index: 15; width: 100%; min-height: 0; height: auto; flex: 0 0 auto; padding: max(12px, env(safe-area-inset-top)) 16px 10px; }
   .sidebar-brand { margin: 0 0 12px; padding: 0 2px; }
   .sidebar-brand-mark { width: 31px; height: 31px; border-radius: 9px; }
   .sidebar-brand-text { font-size: 12px; }
@@ -392,7 +408,7 @@ button:disabled { opacity: .65; cursor: not-allowed; }
 }
 @media (max-width: 720px) {
   .app-layout { min-height: 100dvh; }
-  .app-main { min-width: 0; }
+  .app-main { min-width: 0; padding-bottom: env(safe-area-inset-bottom); }
   .topbar { align-items: flex-start; flex-direction: column; gap: 13px; padding: 16px 0; }
   .topbar-title { align-items: center; }
   .topbar-heading-copy { display: flex; flex: 1; flex-direction: column; gap: 4px; min-width: 0; }
@@ -452,6 +468,7 @@ button:disabled { opacity: .65; cursor: not-allowed; }
   .sidebar { padding-right: 10px; padding-left: 10px; }
   .sidebar-nav-item { padding: 8px 9px; }
   .sidebar-nav-item span { font-size: 8.5px; }
+  .sidebar-nav-item { min-height: 44px; }
   .topbar-actions { flex-wrap: wrap; }
   .asset-picker-label { min-width: 135px; }
   .user-chip { gap: 5px; }

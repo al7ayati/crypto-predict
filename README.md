@@ -67,3 +67,5 @@ See [DEVELOPER_HANDOFF.md](./DEVELOPER_HANDOFF.md) for page behavior, data contr
 - [Binance Spot WebSocket market streams](https://developers.binance.com/docs/binance-spot-api-docs/web-socket-streams)
 
 Forecast scenarios and hypothetical backtest results are for educational analysis only and are not financial advice.
+
+The app is installable as a Progressive Web App on supported browsers. Android and desktop browsers can show a native install prompt; on iPhone/iPad, use the browser Share menu → Add to Home Screen. The service worker caches the app shell and static assets only; market data, sign-in, and alerts still require an internet connection. This is a responsive web app/PWA, not separate native iOS or Android apps.

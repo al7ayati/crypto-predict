@@ -3,6 +3,7 @@ import {
   LayoutDashboard, History, FlaskConical, TrendingUp, LogOut, X
 } from "lucide-react";
 import BrandMark from "./BrandMark";
+import PwaInstallButton from "./PwaInstallButton";
 
 const NAV_ITEMS = [
   { key: "dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -62,6 +63,7 @@ export default function Sidebar({ activeNav, setActiveNav, isOpen, onClose, user
             <span className="block truncate text-[10px] text-blue-100/60">{user?.email || "Signed-in account"}</span>
           </div>
         </div>
+        <PwaInstallButton />
         {signOutError && <p className="mt-3 text-xs leading-5 text-rose-200" role="alert">{signOutError}</p>}
         <button
           type="button"

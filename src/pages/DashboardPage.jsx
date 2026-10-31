@@ -153,6 +153,11 @@ export default function DashboardPage({ marketData, liveTradePrices = {}, tradeS
     return tradeStreamStatus === "live" && quote && Date.now() - quote.timestamp < 60_000 ? quote : null;
   };
   const formatQuote = (asset, quote) => quote ? formatUsdtPrice(quote.price) : formatPrice(asset.priceUsd);
+  const refreshDashboardData = () => {
+    onRefresh?.();
+    trendQueries.forEach((query) => void query.refetch());
+  };
+  const dashboardRefreshing = status === "refreshing" || trendQueries.some((query) => query.isFetching);
   const dailyQueryFailed = trendQueries.some((query) => query.isError && !query.data);
   const dailyQueriesLoading = trendQueries.some((query) => query.isPending);
 
@@ -161,8 +166,8 @@ export default function DashboardPage({ marketData, liveTradePrices = {}, tradeS
       marketData={marketData}
       tradeStreamStatus={tradeStreamStatus}
       liveTradePrices={liveTradePrices}
-      refreshing={status === "refreshing"}
-      onRefresh={onRefresh}
+      refreshing={dashboardRefreshing}
+      onRefresh={refreshDashboardData}
     />
     <section>
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
