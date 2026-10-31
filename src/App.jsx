@@ -11,7 +11,6 @@ import AuthPage from "./pages/AuthPage";
 import Sidebar from "./components/Sidebar";
 import DateRangePicker from "./components/DateRangePicker";
 import CreateAlertModal from "./components/CreateAlertModal";
-import LiveDataStatus from "./components/LiveDataStatus";
 import DashboardPage from "./pages/DashboardPage";
 import HistoricalPage from "./pages/HistoricalPages";
 const BacktestPage = lazy(() => import("./pages/BacktestPage"));
@@ -286,13 +285,6 @@ export default function App() {
               />
             )}
           </div>
-          <LiveDataStatus
-            marketData={marketData}
-            tradeStreamStatus={tradeStreamStatus}
-            liveTradePrices={liveTradePrices}
-            refreshing={marketData.status === "refreshing"}
-            onRefresh={refreshAllMarketData}
-          />
         </header>
 
         <div className="page-content" key={activeNav}>

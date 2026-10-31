@@ -20,6 +20,7 @@ import {
   fetchSevenDayCandles,
   MARKET_ASSETS,
 } from "../services/marketData";
+import LiveDataStatus from "../components/LiveDataStatus";
 import { formatUtcTimestamp } from "../utils/formatting";
 
 const STAT_ICONS = [Coins, BarChart3, Gauge, RefreshCw];
@@ -142,7 +143,6 @@ export default function DashboardPage({ marketData, liveTradePrices = {}, tradeS
     { label: "Bitcoin 24h change", value: Number.isFinite(bitcoinChange) ? formatPercent(bitcoinChange) : "—", changePct: bitcoinChange ?? null, changeLabel: "CoinGecko rolling 24 hours", context: "Aggregated USD percentage" },
   ] : [];
   const status = marketData.status;
-  const statusLabel = status === "live" ? "Market data loaded" : status === "refreshing" ? "Updating market data" : status === "stale" ? "Showing last successful data" : status === "error" ? "Market data unavailable" : "Loading market data";
   const providerTimes = (snapshot?.assets || []).map((asset) => Date.parse(asset.providerUpdatedAt)).filter(Number.isFinite);
   const newestProviderUpdate = providerTimes.length ? new Date(Math.max(...providerTimes)).toISOString() : null;
   const streamLabel = tradeStreamStatus === "live" ? "Binance trade stream connected" : tradeStreamStatus === "reconnecting" ? "Binance trade stream reconnecting; using CoinGecko prices" : tradeStreamStatus === "connecting" ? "Connecting to Binance; using CoinGecko prices" : "Binance stream offline; using CoinGecko prices";
@@ -153,31 +153,25 @@ export default function DashboardPage({ marketData, liveTradePrices = {}, tradeS
     return tradeStreamStatus === "live" && quote && Date.now() - quote.timestamp < 60_000 ? quote : null;
   };
   const formatQuote = (asset, quote) => quote ? formatUsdtPrice(quote.price) : formatPrice(asset.priceUsd);
-  const refreshAllMarketData = () => {
-    onRefresh?.();
-    trendQueries.forEach((query) => query.refetch());
-  };
   const dailyQueryFailed = trendQueries.some((query) => query.isError && !query.data);
   const dailyQueriesLoading = trendQueries.some((query) => query.isPending);
 
   return <div className="dashboard-page space-y-7">
+    <LiveDataStatus
+      marketData={marketData}
+      tradeStreamStatus={tradeStreamStatus}
+      liveTradePrices={liveTradePrices}
+      refreshing={status === "refreshing"}
+      onRefresh={onRefresh}
+    />
     <section>
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="mb-1 text-[11px] font-bold uppercase tracking-[.16em] text-blue-600">Market snapshot</p>
           <h2 className="text-xl font-bold tracking-tight text-slate-900">The market at a glance</h2>
         </div>
-        <div className="flex items-center gap-2">
-          <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold ${status === "live" ? "border-emerald-100 bg-emerald-50 text-emerald-700" : "border-amber-100 bg-amber-50 text-amber-700"}`}>
-            <span className={`h-2 w-2 rounded-full ${status === "live" ? "bg-emerald-500" : "bg-amber-500"}`} />{statusLabel}
-          </span>
-          <button type="button" onClick={refreshAllMarketData} disabled={status === "loading" || status === "refreshing"} aria-label="Refresh market data" title="Refresh market data" className="grid h-9 w-9 place-items-center rounded-xl border border-slate-200 bg-white text-slate-500 hover:border-blue-200 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-50">
-            <RefreshCw size={15} className={status === "loading" || status === "refreshing" ? "animate-spin" : ""} />
-          </button>
-        </div>
       </div>
       {snapshot && <div className="dashboard-stat-grid grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">{stats.map((stat, index) => <StatCard key={stat.label} stat={stat} index={index} />)}</div>}
-      {!snapshot && status === "loading" && <p className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-500">Loading live quotes from CoinGecko…</p>}
       {!snapshot && status === "error" && <p className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-800">{marketData.error} No sample prices are shown as market data.</p>}
     </section>
 
