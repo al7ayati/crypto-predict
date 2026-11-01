@@ -22,7 +22,7 @@ If a visual improvement appears to require changing one of these areas, keep the
 1. **Clarity before density** — establish one clear page title, group related information, and distinguish primary actions from secondary controls.
 2. **Trust through context** — retain visible data-source, freshness, methodology, and educational-use explanations. Never imply that a deterministic baseline is a validated machine-learning forecast.
 3. **Consistent interaction language** — use repeatable spacing, radii, focus indicators, control sizes, hover states, and status treatments.
-4. **Responsive by design** — preserve readable hierarchy and usable controls on narrow screens; do not simply scale down desktop layouts.
+4. **Responsive by design** — preserve readable hierarchy and usable controls on narrow screens; do not simply scale down desktop layouts. In installed iOS/Android experiences, keep fixed UI and dialogs within device safe areas and make short-screen content scrollable.
 5. **Motion with purpose** — use short transitions for navigation, state changes, and direct manipulation. Avoid decorative looping motion and respect reduced-motion preferences.
 6. **Accessible by default** — use WCAG 2.2 as a design reference for keyboard access, visible focus, target size, contrast, reflow, labels, status messages, and predictable interaction.
 7. **Honest feedback** — loading, stale, empty, unavailable, success, and error states must be distinguishable without relying on color alone.
@@ -52,6 +52,7 @@ If a visual improvement appears to require changing one of these areas, keep the
 - [ ] Interactive targets are comfortably sized, with 44px as the product target where layout permits.
 - [ ] Text and meaningful UI boundaries have sufficient contrast.
 - [ ] Content reflows at narrow viewport widths without loss of functionality.
+- [ ] Installed PWA content, navigation, and dialogs remain clear of device safe areas; dialogs remain usable on short screens.
 - [ ] Form controls have programmatic labels and understandable error messages.
 - [ ] Dialogs manage focus, support Escape where appropriate, and return focus on close.
 - [ ] Status and alert changes are announced without requiring color perception.

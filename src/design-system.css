@@ -460,3 +460,45 @@ button { cursor: pointer; }
   }
   .page-content { animation: none !important; }
 }
+
+/* Keep the installed workspace and install dialog clear of device safe areas. */
+.pwa-install-button { min-height: 44px; }
+.pwa-install-backdrop {
+  overflow-y: auto;
+  padding:
+    max(16px, env(safe-area-inset-top))
+    max(16px, env(safe-area-inset-right))
+    max(16px, env(safe-area-inset-bottom))
+    max(16px, env(safe-area-inset-left));
+  overscroll-behavior: contain;
+}
+.pwa-install-dialog {
+  max-height: calc(100vh - 64px);
+  max-height: calc(100dvh - max(32px, env(safe-area-inset-top)) - max(32px, env(safe-area-inset-bottom)));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+@media (max-width: 930px) {
+  .app-main { padding-top: max(12px, env(safe-area-inset-top)); }
+  .sidebar {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding:
+      max(24px, env(safe-area-inset-top))
+      max(16px, env(safe-area-inset-right))
+      max(16px, env(safe-area-inset-bottom))
+      max(16px, env(safe-area-inset-left));
+  }
+  .sidebar > .mt-2 { flex: 0 0 auto; }
+}
+
+@media (max-width: 640px) {
+  .pwa-install-backdrop { align-items: end; }
+  .pwa-install-dialog {
+    width: min(100%, 430px);
+    padding: 22px;
+    border-radius: 20px;
+  }
+}
