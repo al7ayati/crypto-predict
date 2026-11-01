@@ -1,0 +1,27 @@
+/* Product polish layer — presentation only; application logic and backend contracts stay untouched. */
+:root{--motion-fast:160ms;--motion-base:220ms;--motion-slow:360ms;--ease-out:cubic-bezier(.2,.75,.25,1);--surface-shadow:0 12px 34px rgba(19,39,74,.055);color-scheme:light}
+html{scroll-behavior:smooth;scroll-padding-top:24px}body{overscroll-behavior-y:contain}
+button,a,input,select,textarea{touch-action:manipulation}button,a{-webkit-tap-highlight-color:transparent}::selection{color:#102451;background:rgba(142,179,255,.32)}
+:where(button,a,input,select,textarea,summary,[tabindex]):focus-visible{outline:3px solid rgba(21,94,239,.28);outline-offset:3px}
+:where(button,input,select,textarea){min-height:40px}.icon-button,.mobile-menu-toggle,.sidebar-close-button{min-width:40px;min-height:40px}
+.page-content{animation:workspace-enter var(--motion-slow) var(--ease-out) both}
+@keyframes workspace-enter{from{opacity:.72;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
+:where(.panel,.dashboard-panel,.dashboard-stat-card,.metric-card,.market-card,.pulse-card,.daily-trend-panel,.daily-comparison-panel,.quick-link-card){transition:box-shadow var(--motion-base) var(--ease-out),border-color var(--motion-base) var(--ease-out),transform var(--motion-base) var(--ease-out)}
+:where(.panel,.dashboard-panel,.dashboard-stat-card,.metric-card,.market-card,.pulse-card,.daily-trend-panel,.daily-comparison-panel):hover{box-shadow:var(--surface-shadow)}
+:where(.quick-link-card,.sidebar-nav-item,.secondary-action,.icon-button,.sign-out-button,.asset-picker-label,.date-range-trigger){transition:color var(--motion-fast) var(--ease-out),background-color var(--motion-fast) var(--ease-out),border-color var(--motion-fast) var(--ease-out),box-shadow var(--motion-fast) var(--ease-out),transform var(--motion-fast) var(--ease-out)}
+.quick-link-card:active,.secondary-action:active,.icon-button:active,.sidebar-nav-item:active{transform:scale(.985)}
+:where(.market-card,.metric-card,.dashboard-stat-card):hover{border-color:#d5e1f5}
+:where(input,select,textarea){transition:border-color var(--motion-fast) var(--ease-out),box-shadow var(--motion-fast) var(--ease-out)}
+:where(input,select,textarea):focus{border-color:#91b2f4;box-shadow:0 0 0 4px rgba(21,94,239,.08)}
+.app-main{padding-left:max(clamp(16px,3vw,42px),env(safe-area-inset-left));padding-right:max(clamp(16px,3vw,42px),env(safe-area-inset-right))}
+.app-footer{padding-bottom:max(18px,env(safe-area-inset-bottom))}
+.sidebar{padding-top:max(24px,env(safe-area-inset-top));padding-bottom:max(18px,env(safe-area-inset-bottom))}
+.sidebar-backdrop{-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}
+.topbar{isolation:isolate}.topbar-actions{flex-wrap:wrap}.page-content,.page-content>*{min-width:0}.page-content img,.page-content svg{max-width:100%}
+.page-content [role=region],.page-content .comparison-table-wrap,.page-content .wide-table-scroll{scrollbar-width:thin;scrollbar-color:#c8d4e6 transparent}
+.page-content :where(table){font-variant-numeric:tabular-nums}
+@media(hover:hover) and (pointer:fine){.quick-link-card:hover{transform:translateY(-2px);box-shadow:var(--surface-shadow)}.market-card:hover{transform:translateY(-2px)}.sidebar-nav-item:hover{transform:translateX(2px)}}
+@media(max-width:930px){.app-main{width:100%;padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right))}.topbar{gap:12px}.topbar-actions{justify-content:flex-start}}
+@media(max-width:640px){html{scroll-padding-top:12px}.topbar{min-height:0;padding-top:max(14px,env(safe-area-inset-top));margin-bottom:18px}.topbar-kicker{font-size:8px}.topbar-actions{width:100%}.asset-picker-label{flex:1 1 100%}.asset-picker-label select{width:100%;max-width:none}.app-footer{flex-direction:column;gap:5px;padding-top:22px;font-size:9px}.panel,.dashboard-panel{padding:15px;border-radius:15px}}
+@media(max-width:360px){.app-main{padding-left:12px;padding-right:12px}.topbar-title h1{font-size:18px}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}.page-content{animation:none}}
