@@ -65,7 +65,15 @@ export default function BacktestPage() {
 
   const selectedResults = useMemo(() => loaded
     .filter(({ asset }) => assetFilter === "All" || asset.symbol === assetFilter)
-    .map(({ asset, daily }) => ({ asset, daily, result: backtestMovingAverage(asset.symbol, daily, period) })), [assetFilter, loaded, period]);
+    .map(({ asset, daily }) => {
+      try {
+        return { asset, daily, result: backtestMovingAverage(asset.symbol, daily, period), error: "" };
+      } catch (calculationError) {
+        return { asset, daily, result: null, error: calculationError.message };
+      }
+    })
+    .filter(({ result }) => Boolean(result)), [assetFilter, loaded, period]);
+  const skippedAssets = loaded.filter(({ asset }) => assetFilter === "All" || asset.symbol === assetFilter).length - selectedResults.length;
   const summary = useMemo(() => summarizeBacktest(selectedResults.map(({ result }) => result)), [selectedResults]);
   const filteredTrades = summary.trades.filter((trade) => outcomeFilter === "All" || (trade.pnlPct >= 0 ? "Profit" : "Loss") === outcomeFilter);
   const pageSize = 10;
@@ -82,6 +90,8 @@ export default function BacktestPage() {
   };
   const metrics = [
     { label: `Net strategy return · ${period}D`, value: `${summary.totalReturnPct >= 0 ? "+" : ""}${summary.totalReturnPct.toFixed(2)}%`, note: "Equal-weight portfolio · after modeled fees" },
+    { label: "Buy & hold benchmark", value: `${summary.buyHoldTotalReturnPct >= 0 ? "+" : ""}${summary.buyHoldTotalReturnPct.toFixed(2)}%`, note: "Passive equal-weight return · no fees" },
+    { label: "Maximum drawdown", value: `${summary.maxDrawdownPct.toFixed(2)}%`, note: "Largest peak-to-trough decline" },
     { label: "Closed hypothetical trades", value: String(summary.tradeCount), note: "Includes liquidation at the period end" },
     { label: "Winning trades", value: summary.tradeCount ? `${summary.winRatePct.toFixed(1)}%` : "—", note: "Share of closed hypothetical trades" },
   ];
@@ -94,8 +104,9 @@ export default function BacktestPage() {
 
     {state === "loading" && <p className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-500">Loading up to five Binance daily candle series…</p>}
     {state === "error" && <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-800">{error} No simulated results are shown without historical prices.</p>}
-    {state !== "loading" && state !== "error" && <>
-      <section className="grid grid-cols-1 gap-4 md:grid-cols-3">{metrics.map((metric, index) => <article key={metric.label} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><p className="text-xs font-medium text-slate-500">{metric.label}</p><p className="mt-4 text-3xl font-bold tracking-tight text-slate-900">{metric.value}</p><p className="mt-1.5 text-[11px] text-slate-400">{metric.note}</p></article>)}</section>
+    {state !== "loading" && state !== "error" && selectedResults.length === 0 && <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-800">There are not enough valid completed daily candles to calculate this strategy for the selected asset and period. No simulated performance is displayed.</p>}
+    {state !== "loading" && state !== "error" && selectedResults.length > 0 && <>
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">{metrics.map((metric, index) => <article key={metric.label} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><p className="text-xs font-medium text-slate-500">{metric.label}</p><p className="mt-4 text-3xl font-bold tracking-tight text-slate-900">{metric.value}</p><p className="mt-1.5 text-[11px] text-slate-400">{metric.note}</p></article>)}</section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
         <div className="mb-4"><h3 className="text-base font-bold text-slate-900">Weekly portfolio return</h3><p className="mt-1 text-xs text-slate-500">Compounded equal-weight strategy return for each UTC week · percent</p></div>
@@ -147,7 +158,7 @@ export default function BacktestPage() {
             <button type="button" className="backtest-page-button" onClick={() => setCurrentPage((value) => Math.min(pageCount, value + 1))} disabled={page >= pageCount}>Next</button>
           </div>
         </div>
-        <p className="border-t border-slate-100 px-5 py-3 text-[10px] leading-5 text-slate-400 sm:px-6" role={error ? "status" : undefined}>{error ? `Showing cached results; data refresh note: ${error} ` : ""}Source: Binance Spot API · fetched {formatUtcTimestamp(fetchedAt)} · {loaded.length} of {MARKET_ASSETS.length} assets loaded. Results use completed UTC daily candles and USDT prices; fees are modeled, not actual exchange fees. <a href={BINANCE_MARKET_DATA_URL} target="_blank" rel="noreferrer" className="underline underline-offset-2">Data provider</a></p>
+        <p className="border-t border-slate-100 px-5 py-3 text-[10px] leading-5 text-slate-400 sm:px-6" role={error ? "status" : undefined}>{error ? `Showing cached results; data refresh note: ${error} ` : ""}Source: Binance Spot API · fetched {formatUtcTimestamp(fetchedAt)} · {selectedResults.length} of {assetFilter === "All" ? MARKET_ASSETS.length : 1} selected assets usable{skippedAssets ? `; ${skippedAssets} skipped for insufficient history` : ""}. Results use completed UTC daily candles and USDT prices; fees are modeled, not actual exchange fees. <a href={BINANCE_MARKET_DATA_URL} target="_blank" rel="noreferrer" className="underline underline-offset-2">Data provider</a></p>
       </section>
     </>}
   </div>;
