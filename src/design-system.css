@@ -58,7 +58,7 @@ button,a,input,select,textarea{touch-action:manipulation}button,a{-webkit-tap-hi
   .auth-screen{grid-template-columns:minmax(0,1fr);min-height:100svh}
   .auth-showcase{display:none}
   .auth-form-side{min-height:100svh;padding:calc(72px + env(safe-area-inset-top)) 20px max(24px,env(safe-area-inset-bottom))}
-  .auth-mobile-brand{top:max(18px,env(safe-area-inset-top))}
+  .auth-mobile-brand{top:max(18px,env(safe-area-inset-top));bottom:auto}
   .auth-card{border-radius:18px;box-shadow:0 14px 42px rgba(18,38,75,.07)}
   .historical-header-actions{width:100%;justify-content:flex-start}
   .historical-range-presets{width:100%}
