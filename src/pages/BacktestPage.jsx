@@ -127,13 +127,13 @@ export default function BacktestPage() {
               <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: "#8290a5" }} tickFormatter={(value) => `${Number(value).toFixed(0)}%`} width={48} />
               <ReferenceLine y={0} stroke="#94a3b8" strokeWidth={1.25} />
               <Tooltip content={<EquityCurveTooltip />} />
-              <Line type="monotone" dataKey="modelReturnPct" name="Model Strategy" stroke="#2563eb" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
+              <Line type="monotone" dataKey="modelReturnPct" name="SMA Rule Strategy" stroke="#2563eb" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
               {showBuyAndHold && <Line type="monotone" dataKey="buyHoldReturnPct" name="Buy & Hold" stroke="#f59e0b" strokeWidth={2} strokeDasharray="6 4" dot={false} activeDot={{ r: 4 }} />}
             </LineChart>
           </ResponsiveContainer>
         </div>
         <div className="mt-3 flex flex-wrap gap-4 text-[10px] font-semibold">
-          <span className="text-blue-700">Model Strategy: {summary.totalReturnPct >= 0 ? "+" : ""}{summary.totalReturnPct.toFixed(2)}%</span>
+          <span className="text-blue-700">SMA Rule Strategy: {summary.totalReturnPct >= 0 ? "+" : ""}{summary.totalReturnPct.toFixed(2)}%</span>
           {showBuyAndHold && <span className="text-amber-700">Buy &amp; Hold: {summary.buyHoldTotalReturnPct >= 0 ? "+" : ""}{summary.buyHoldTotalReturnPct.toFixed(2)}%</span>}
         </div>
       </section>
