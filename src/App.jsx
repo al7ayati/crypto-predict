@@ -237,6 +237,7 @@ export default function App() {
 
   return (
     <div className="app-layout">
+      <a className="skip-link" href="#main-content">Skip to main content</a>
       {mobileMenuOpen && <button type="button" className="sidebar-backdrop" aria-label="Close navigation" onClick={() => setMobileMenuOpen(false)} />}
       <Sidebar
         activeNav={activeNav}
@@ -291,7 +292,7 @@ export default function App() {
           </div>
         </header>
 
-        <div className="page-content" key={activeNav}>
+        <div className="page-content" id="main-content" tabIndex={-1} key={activeNav}>
           <Suspense fallback={<div className="panel text-sm text-slate-500" role="status">Loading analytics…</div>}>
             {renderActivePage()}
           </Suspense>
