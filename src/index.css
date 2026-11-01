@@ -601,6 +601,27 @@ button:disabled { opacity: .65; cursor: not-allowed; }
   .page-panel-title { font-size: 14px; }
 }
 
+/* The picker is portaled to the viewport so fixed positioning is not clipped by workspace panels. */
+.date-range-popover {
+  position: fixed;
+  z-index: 80;
+  right: auto;
+  bottom: auto;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+.range-month-select:disabled { color: #c5ccc6; cursor: not-allowed; }
+
+@media (max-width: 720px) {
+  .range-calendars { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .range-calendar-grid { gap: 2px; }
+  .range-weekday, .range-day-empty, .range-day { height: 36px; }
+  .range-day { border-radius: 9px; }
+  .range-month-select { width: 40px; height: 40px; }
+  .range-picker-summary { flex-wrap: wrap; }
+}
+
 /* Refined, compact surfaces and touch-friendly range controls */
 :root {
   --ink: #17241f;
