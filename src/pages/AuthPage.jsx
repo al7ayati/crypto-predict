@@ -320,15 +320,7 @@ export default function AuthPage() {
                   />
                   <button
                     type="button"
-                    style={{
-                      background: "none",
-                      border: "none",
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      padding: "0 8px",
-                      color: "#6b7280"
-                    }}
+                    className="auth-password-toggle"
                     onClick={() => setShowPassword(!showPassword)}
 
                     aria-label={showPassword ? "Hide password" : "Show password"}
@@ -355,15 +347,7 @@ export default function AuthPage() {
                   />
                   <button
                     type="button"
-                    style={{
-                      background: "none",
-                      border: "none",
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      padding: "0 8px",
-                      color: "#6b7280"
-                    }}
+                    className="auth-password-toggle"
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
 
                     aria-label={

@@ -35,7 +35,12 @@ button,a,input,select,textarea{touch-action:manipulation}button,a{-webkit-tap-hi
 .auth-card .form-field{gap:8px}
 .auth-card .input-wrap{border:1px solid #e2e9f3;border-radius:11px;background:#fbfcfe;transition:border-color var(--motion-fast),box-shadow var(--motion-fast),background var(--motion-fast)}
 .auth-card .input-wrap:focus-within{border-color:#91b2f4;background:#fff;box-shadow:0 0 0 4px rgba(21,94,239,.08)}
-.auth-card .input-wrap input{min-width:0;background:transparent}
+.auth-card .input-wrap input{min-width:0;min-height:44px;border:0;border-radius:0;background:transparent;box-shadow:none;outline:none;-webkit-appearance:none;appearance:none}
+.auth-card .input-wrap input:focus,.auth-card .input-wrap input:focus-visible{border:0;box-shadow:none;outline:none}
+.auth-card .input-wrap>svg{flex:0 0 auto}
+.auth-password-toggle{display:grid;width:44px;height:44px;flex:0 0 44px;place-items:center;padding:0;border:0;border-radius:9px;background:transparent;color:#728097;cursor:pointer;transition:background-color var(--motion-fast),color var(--motion-fast)}
+.auth-password-toggle:hover{background:#f0f4fb;color:#315efb}
+.auth-password-toggle:focus-visible{outline:2px solid rgba(49,94,251,.55);outline-offset:1px}
 .auth-submit{min-height:48px;border-radius:12px;box-shadow:0 8px 18px rgba(21,94,239,.16);transition:transform var(--motion-fast),box-shadow var(--motion-fast),filter var(--motion-fast)}
 .auth-submit:not(:disabled):hover{transform:translateY(-1px);box-shadow:0 11px 24px rgba(21,94,239,.2);filter:saturate(1.05)}
 .auth-submit:not(:disabled):active{transform:translateY(0) scale(.99)}
@@ -57,7 +62,8 @@ button,a,input,select,textarea{touch-action:manipulation}button,a{-webkit-tap-hi
 @media(max-width:720px){
   .auth-screen{grid-template-columns:minmax(0,1fr);min-height:100svh}
   .auth-showcase{display:none}
-  .auth-form-side{min-height:100svh;padding:calc(72px + env(safe-area-inset-top)) 20px max(24px,env(safe-area-inset-bottom))}
+  .auth-form-side{min-height:100svh;align-items:flex-start;padding:calc(72px + env(safe-area-inset-top)) 20px max(24px,env(safe-area-inset-bottom))}
+  .auth-card{margin:auto}
   .auth-mobile-brand{top:max(18px,env(safe-area-inset-top));bottom:auto}
   .auth-card{border-radius:18px;box-shadow:0 14px 42px rgba(18,38,75,.07)}
   .historical-header-actions{width:100%;justify-content:flex-start}
