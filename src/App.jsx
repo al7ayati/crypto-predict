@@ -101,6 +101,7 @@ export default function App() {
     setAlertModalOpen(true);
   }, [selectedSymbol]);
   const closeAlertComposer = useCallback(() => setAlertModalOpen(false), []);
+  const closeMobileMenu = useCallback(() => setMobileMenuOpen(false), []);
   const freshAlertPrices = Object.fromEntries(Object.entries(liveTradePrices).filter(([, quote]) =>
     tradeStreamStatus === "live" && quote && Date.now() - quote.timestamp < 60_000
   ));
@@ -243,7 +244,7 @@ export default function App() {
         activeNav={activeNav}
         setActiveNav={navigate}
         isOpen={mobileMenuOpen}
-        onClose={() => setMobileMenuOpen(false)}
+        onClose={closeMobileMenu}
         user={user}
         onSignOut={handleSignOut}
         signOutBusy={signOutBusy}
