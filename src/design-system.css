@@ -25,3 +25,50 @@ button,a,input,select,textarea{touch-action:manipulation}button,a{-webkit-tap-hi
 @media(max-width:640px){html{scroll-padding-top:12px}.topbar{min-height:0;padding-top:max(14px,env(safe-area-inset-top));margin-bottom:18px}.topbar-kicker{font-size:8px}.topbar-actions{width:100%}.asset-picker-label{flex:1 1 100%}.asset-picker-label select{width:100%;max-width:none}.app-footer{flex-direction:column;gap:5px;padding-top:22px;font-size:9px}.panel,.dashboard-panel{padding:15px;border-radius:15px}}
 @media(max-width:360px){.app-main{padding-left:12px;padding-right:12px}.topbar-title h1{font-size:18px}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}.page-content{animation:none}}
+
+
+/* Page-level UX pass: clearer hierarchy, calmer surfaces, and consistent controls. */
+:where(.auth-card,.auth-showcase,.market-status,.live-data-status,.forecast-panel,.prediction-risk-card){isolation:isolate}
+.auth-form-side{min-width:0;display:flex;align-items:center;justify-content:center;padding:clamp(24px,5vw,64px)}
+.auth-card{width:min(100%,440px);padding:clamp(22px,3vw,34px);border:1px solid rgba(226,233,244,.9);border-radius:22px;background:rgba(255,255,255,.96);box-shadow:0 22px 70px rgba(18,38,75,.075)}
+.auth-heading p{max-width:38ch;line-height:1.75}
+.auth-card .form-field{gap:8px}
+.auth-card .input-wrap{border:1px solid #e2e9f3;border-radius:11px;background:#fbfcfe;transition:border-color var(--motion-fast),box-shadow var(--motion-fast),background var(--motion-fast)}
+.auth-card .input-wrap:focus-within{border-color:#91b2f4;background:#fff;box-shadow:0 0 0 4px rgba(21,94,239,.08)}
+.auth-card .input-wrap input{min-width:0;background:transparent}
+.auth-submit{min-height:48px;border-radius:12px;box-shadow:0 8px 18px rgba(21,94,239,.16);transition:transform var(--motion-fast),box-shadow var(--motion-fast),filter var(--motion-fast)}
+.auth-submit:not(:disabled):hover{transform:translateY(-1px);box-shadow:0 11px 24px rgba(21,94,239,.2);filter:saturate(1.05)}
+.auth-submit:not(:disabled):active{transform:translateY(0) scale(.99)}
+.auth-card .text-button{min-height:36px}
+:where(.historical-range-pill,.history-export-button,.backtest-filter-pill,.backtest-page-button,.dashboard-alert-button,.icon-button){min-height:40px}
+.history-export-button{box-shadow:0 3px 10px rgba(21,94,239,.06)}
+.wide-table-scroll{border:1px solid #edf1f7;border-radius:13px}
+.history-table thead,.backtest-trades-table thead{position:sticky;top:0;z-index:1}
+.history-table tbody tr,.backtest-trades-table tbody tr{transition:background-color var(--motion-fast)}
+.history-table tbody tr:hover,.backtest-trades-table tbody tr:hover{background:#f5f8ff}
+:where(.backtest-filter-pill,.backtest-page-button){transition:background var(--motion-fast),border-color var(--motion-fast),color var(--motion-fast),transform var(--motion-fast)}
+:where(.backtest-filter-pill,.backtest-page-button):not(:disabled):active{transform:scale(.98)}
+:where(.backtest-filter-pill,.backtest-page-button):focus-visible{outline-offset:2px}
+:where(.prediction-risk-card,.forecast-panel,.panel,.market-card){overflow-wrap:anywhere}
+:where(.prediction-page,.history-page){min-width:0}
+:where(.prediction-page,.history-page) :where(button,select,input){max-width:100%}
+:where(.overview-chart,.chart-container,.prediction-chart){min-width:0}
+:where(.market-alert-toast){max-width:min(420px,calc(100vw - 32px));padding-bottom:max(12px,env(safe-area-inset-bottom))}
+@media(max-width:720px){
+  .auth-screen{grid-template-columns:minmax(0,1fr);min-height:100svh}
+  .auth-showcase{display:none}
+  .auth-form-side{min-height:100svh;padding:calc(72px + env(safe-area-inset-top)) 20px max(24px,env(safe-area-inset-bottom))}
+  .auth-mobile-brand{top:max(18px,env(safe-area-inset-top));bottom:auto}
+  .auth-card{border-radius:18px;box-shadow:0 14px 42px rgba(18,38,75,.07)}
+  .historical-header-actions{width:100%;justify-content:flex-start}
+  .historical-range-presets{width:100%}
+  .history-export-button{flex:1 1 auto;justify-content:center}
+}
+@media(max-width:420px){
+  .auth-form-side{padding-right:14px;padding-left:14px}
+  .auth-card{padding:20px 16px}
+  .historical-range-pill{padding-inline:8px;font-size:8px}
+}
+@media(prefers-reduced-motion:reduce){
+  .auth-card .input-wrap,.auth-submit,.history-table tbody tr,.backtest-trades-table tbody tr{transition:none}
+}
