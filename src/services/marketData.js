@@ -48,6 +48,40 @@ async function requestJson(url, signal) {
   return response.json();
 }
 
+export async function fetchMarketSentiment(signal) {
+  const url = new URL(MARKET_DATA_CONFIG.alternativeMe.fearGreedUrl);
+  url.searchParams.set("limit", "1");
+  const response = await fetch(url, {
+    signal,
+    headers: { accept: "application/json" },
+  });
+  if (!response.ok) {
+    throw new Error(`Alternative.me returned HTTP ${response.status} for the Fear & Greed Index.`);
+  }
+
+  const result = await response.json();
+  const observation = result?.data?.[0];
+  if (observation?.value === null || observation?.value === undefined || String(observation.value).trim() === "") {
+    throw new Error("Alternative.me returned an invalid Fear & Greed Index response.");
+  }
+  const score = Number(observation?.value);
+  if (
+    !Number.isFinite(score) ||
+    score < 0 ||
+    score > 100 ||
+    typeof observation?.value_classification !== "string" ||
+    !observation.value_classification.trim()
+  ) {
+    throw new Error("Alternative.me returned an invalid Fear & Greed Index response.");
+  }
+
+  return {
+    score,
+    classification: observation.value_classification.trim(),
+    timestamp: observation.timestamp || null,
+  };
+}
+
 function getUtcDateTimestamp(value, endOfDay = false) {
   if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return NaN;
   const timestamp = new Date(`${value}T00:00:00.000Z`).getTime();

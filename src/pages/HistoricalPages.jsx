@@ -2,9 +2,20 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowDown, ArrowUp, ArrowUpDown, Download, Search } from "lucide-react";
 import { BINANCE_MARKET_DATA_URL, fetchPriceHistory, toDailyPrices } from "../services/marketData";
+import { getHistoricalPresetRange, getHistoricalSearchMatch } from "../services/historicalData.js";
 import { formatUtcTimestamp } from "../utils/formatting";
 
 const PAGE_SIZE = 10;
+const SORTABLE_COLUMNS = [
+  ["date", "Candle date (UTC)"],
+  ["open", "Open (USDT)"],
+  ["high", "High (USDT)"],
+  ["low", "Low (USDT)"],
+  ["close", "Close (USDT)"],
+  ["volume", "Volume"],
+  ["quoteVolume", "Volume (USDT)"],
+  ["trades", "Trades"],
+];
 
 function getPageItems(page, pageCount) {
   if (pageCount <= 5) return Array.from({ length: pageCount }, (_, index) => index + 1);
@@ -22,7 +33,7 @@ function formatPrice(value) {
   return `${value.toLocaleString("en-US", { minimumFractionDigits: value < 1 ? 4 : 2, maximumFractionDigits: value < 1 ? 8 : 2 })} USDT`;
 }
 
-export default function HistoricalPage({ symbol, fromDate, toDate }) {
+export default function HistoricalPage({ symbol, fromDate, toDate, onApplyRange }) {
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("date");
   const [sortDirection, setSortDirection] = useState("desc");
@@ -48,12 +59,15 @@ export default function HistoricalPage({ symbol, fromDate, toDate }) {
   }, [fromDate, symbol, toDate]);
 
   const filteredLogs = useMemo(() => {
-    const query = search.trim().toLowerCase();
     return liveLogs
       .filter((row) => (!fromDate || row.date >= fromDate) && (!toDate || row.date <= toDate))
-      .filter((row) => !query || [row.date, row.price].some((value) => String(value).toLowerCase().includes(query)))
+      .filter((row) => getHistoricalSearchMatch(row, search).matches)
       .sort((left, right) => {
-        const compare = sortBy === "date" ? left.date.localeCompare(right.date) : left.price - right.price;
+        const leftValue = left[sortBy];
+        const rightValue = right[sortBy];
+        const compare = typeof leftValue === "string"
+          ? leftValue.localeCompare(rightValue)
+          : leftValue - rightValue;
         return sortDirection === "asc" ? compare : -compare;
       });
   }, [fromDate, liveLogs, search, sortBy, sortDirection, toDate]);
@@ -66,6 +80,12 @@ export default function HistoricalPage({ symbol, fromDate, toDate }) {
     setPage(1);
     if (sortBy === field) setSortDirection((direction) => direction === "asc" ? "desc" : "asc");
     else { setSortBy(field); setSortDirection(field === "date" ? "desc" : "asc"); }
+  };
+
+  const applyPreset = (preset) => {
+    const nextRange = getHistoricalPresetRange(preset);
+    onApplyRange(nextRange.fromDate, nextRange.toDate);
+    setPage(1);
   };
 
   const exportCsv = () => {
@@ -90,11 +110,24 @@ export default function HistoricalPage({ symbol, fromDate, toDate }) {
     const Icon = active ? sortDirection === "asc" ? ArrowUp : ArrowDown : ArrowUpDown;
     return <button type="button" onClick={() => handleSort(field)} aria-label={`Sort by ${label}`} aria-pressed={active} className="inline-flex items-center gap-1.5 font-semibold text-slate-500 hover:text-blue-700">{label}<Icon size={12} /></button>;
   };
+  const renderPrice = (row, field) => {
+    const matches = getHistoricalSearchMatch(row, search).matchingPriceFields.includes(field);
+    const price = formatPrice(row[field]);
+    return matches ? <mark className="historical-search-highlight">{price}</mark> : price;
+  };
+  const renderSortHeader = ([field, label]) => <th key={field} aria-sort={sortBy === field ? sortDirection === "asc" ? "ascending" : "descending" : "none"}>
+    {renderSortButton(field, field === "volume" ? `Volume (${symbol})` : label)}
+  </th>;
 
   return <div className="history-page panel">
     <div className="historical-header">
       <div><h3 className="page-panel-title">Historical Market Data · {symbol}</h3><p className="dashboard-panel-subtitle">Binance Spot daily OHLCV candles · {symbol}/USDT · candle dates in UTC</p></div>
-      <button className="history-export-button" type="button" onClick={exportCsv} disabled={!filteredLogs.length}><Download size={16} /> Export CSV</button>
+      <div className="historical-header-actions">
+        <div className="historical-range-presets" role="group" aria-label="Quick historical date ranges">
+          {["7D", "30D", "90D", "1Y"].map((preset) => <button key={preset} type="button" className="historical-range-pill" onClick={() => applyPreset(preset)}>{preset}</button>)}
+        </div>
+        <button className="history-export-button" type="button" onClick={exportCsv} disabled={!filteredLogs.length}><Download size={16} /> Export CSV</button>
+      </div>
     </div>
     <div className="mb-4 flex flex-wrap items-end gap-3">
       <label className="relative ml-auto flex min-w-[210px] flex-1 flex-col gap-1.5 text-[10px] font-semibold text-slate-500 sm:max-w-xs">Search date or price
@@ -102,18 +135,21 @@ export default function HistoricalPage({ symbol, fromDate, toDate }) {
       </label>
     </div>
     <div className="wide-table-scroll"><table className="data-table history-table">
-      <thead><tr><th aria-sort={sortBy === "date" ? sortDirection === "asc" ? "ascending" : "descending" : "none"}>{renderSortButton("date", "Candle date (UTC)")}</th><th>Open (USDT)</th><th>High (USDT)</th><th>Low (USDT)</th><th aria-sort={sortBy === "price" ? sortDirection === "asc" ? "ascending" : "descending" : "none"}>{renderSortButton("price", "Close (USDT)")}</th><th>Volume ({symbol})</th><th>Volume (USDT)</th><th>Trades</th></tr></thead>
+      <thead><tr>{SORTABLE_COLUMNS.map(renderSortHeader)}</tr></thead>
       <tbody>
-        {visibleLogs.map((row) => <tr key={row.date}>
-          <td data-label="Candle date (UTC)"><strong>{row.date}</strong></td>
-          <td data-label="Open (USDT)">{formatPrice(row.open)}</td>
-          <td data-label="High (USDT)">{formatPrice(row.high)}</td>
-          <td data-label="Low (USDT)">{formatPrice(row.low)}</td>
-          <td data-label="Close (USDT)"><strong>{formatPrice(row.close)}</strong></td>
+        {visibleLogs.map((row) => {
+          const searchMatch = getHistoricalSearchMatch(row, search);
+          return <tr key={row.date}>
+          <td data-label="Candle date (UTC)"><strong>{searchMatch.dateMatches ? <mark className="historical-search-highlight">{row.date}</mark> : row.date}</strong></td>
+          <td data-label="Open (USDT)">{renderPrice(row, "open")}</td>
+          <td data-label="High (USDT)">{renderPrice(row, "high")}</td>
+          <td data-label="Low (USDT)">{renderPrice(row, "low")}</td>
+          <td data-label="Close (USDT)"><strong>{renderPrice(row, "close")}</strong></td>
           <td data-label={`Volume (${symbol})`}>{row.volume.toLocaleString("en-US", { maximumFractionDigits: 4 })}</td>
           <td data-label="Volume (USDT)">{row.quoteVolume.toLocaleString("en-US", { maximumFractionDigits: 2 })}</td>
           <td data-label="Trades">{row.trades.toLocaleString("en-US")}</td>
-        </tr>)}
+          </tr>;
+        })}
         {!visibleLogs.length && <tr><td colSpan={8} style={{ textAlign: "center" }}>{historyState === "loading" ? "Loading Binance daily candles…" : historyState === "error" ? "Historical data is unavailable." : "No records match these filters."}</td></tr>}
       </tbody>
     </table></div>

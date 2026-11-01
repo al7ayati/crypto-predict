@@ -5,6 +5,7 @@ import {
   calculateRiskMetrics,
   calculateTechnicalIndicators,
   calculateTrendBaseline,
+  generateHumanFactors,
 } from "./technicalIndicators.js";
 
 function observations(prices, dayOffsets = prices.map((_, index) => index)) {
@@ -88,4 +89,28 @@ test("daily trend signal is a transparent technical rule and needs complete indi
   assert.equal(calculateDailyTrendSignal({ actual: 120, ema20: 115, ema50: 110, rsi: 60 }, -0.01), "buy");
   assert.equal(calculateDailyTrendSignal({ actual: 100, ema20: 100, ema50: 95, rsi: 50 }, 0), "neutral");
   assert.equal(calculateDailyTrendSignal({ actual: 120, ema20: null, ema50: null, rsi: null }, 0.01), null);
+});
+
+test("generateHumanFactors explains indicator, risk, and sentiment context", () => {
+  const factors = generateHumanFactors(
+    { actual: 120, ema20: 115, ema50: 110, rsi: 72.5 },
+    { annualizedVolatilityPct: 82.4, riskLevel: "medium" },
+    { score: 68, classification: "Greed" }
+  );
+
+  assert.equal(factors.length, 4);
+  assert.match(factors[0], /Price is above EMA20 and EMA50/);
+  assert.match(factors[1], /RSI14 is 72\.5.*overbought/);
+  assert.match(factors[2], /82\.4%.*medium risk/);
+  assert.match(factors[3], /Greed at 68\/100.*does not affect the baseline/);
+});
+
+test("generateHumanFactors explains unavailable data without inventing values", () => {
+  const factors = generateHumanFactors({ actual: 100 }, null, null);
+  assert.equal(factors.length, 4);
+  assert.ok(factors.every((factor) => typeof factor === "string" && factor.length > 0));
+  assert.match(factors[0], /EMA history is incomplete/);
+  assert.match(factors[1], /RSI14 is unavailable/);
+  assert.match(factors[2], /21 consecutive daily closes/);
+  assert.match(factors[3], /Market sentiment is unavailable/);
 });

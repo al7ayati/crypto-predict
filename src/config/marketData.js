@@ -13,6 +13,9 @@ export const MARKET_DATA_CONFIG = Object.freeze({
     marketsPath: "/coins/markets",
     minimumRequestGapMs: 13_000,
   }),
+  alternativeMe: Object.freeze({
+    fearGreedUrl: "https://api.alternative.me/fng/",
+  }),
   binance: Object.freeze({
     apiBaseUrl: "https://api.binance.com/api/v3",
     streamBaseUrl: "wss://data-stream.binance.vision/stream",

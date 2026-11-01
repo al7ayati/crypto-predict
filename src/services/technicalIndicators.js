@@ -208,3 +208,49 @@ export function calculateDailyTrendSignal(latestIndicator, meanDailyLogReturn) {
   if (latestIndicator.actual < latestIndicator.ema20 && latestIndicator.rsi < 50 && latestIndicator.rsi > rsiOversold) return "sell";
   return "neutral";
 }
+
+export function generateHumanFactors(latestIndicator, riskMetrics, sentiment) {
+  const factors = [];
+  const hasMovingAverages = Number.isFinite(latestIndicator?.actual) &&
+    Number.isFinite(latestIndicator?.ema20) &&
+    Number.isFinite(latestIndicator?.ema50);
+  if (!hasMovingAverages) {
+    factors.push("Moving-average context is unavailable because the required EMA history is incomplete.");
+  } else if (latestIndicator.actual > latestIndicator.ema20 && latestIndicator.ema20 > latestIndicator.ema50) {
+    factors.push("Price is above EMA20 and EMA50, with EMA20 above EMA50, indicating a positive recent moving-average alignment.");
+  } else if (latestIndicator.actual < latestIndicator.ema20 && latestIndicator.ema20 < latestIndicator.ema50) {
+    factors.push("Price is below EMA20 and EMA50, with EMA20 below EMA50, indicating a negative recent moving-average alignment.");
+  } else {
+    factors.push("Price and EMA20/EMA50 do not form a fully aligned upward or downward trend.");
+  }
+
+  if (!Number.isFinite(latestIndicator?.rsi)) {
+    factors.push("RSI14 is unavailable because the required price history is incomplete.");
+  } else if (latestIndicator.rsi >= rsiOverbought) {
+    factors.push(`RSI14 is ${latestIndicator.rsi.toFixed(1)}, above the ${rsiOverbought} reference level commonly associated with overbought conditions.`);
+  } else if (latestIndicator.rsi <= rsiOversold) {
+    factors.push(`RSI14 is ${latestIndicator.rsi.toFixed(1)}, below the ${rsiOversold} reference level commonly associated with oversold conditions.`);
+  } else {
+    factors.push(`RSI14 is ${latestIndicator.rsi.toFixed(1)}, between the ${rsiOversold} and ${rsiOverbought} reference levels.`);
+  }
+
+  if (Number.isFinite(riskMetrics?.annualizedVolatilityPct)) {
+    factors.push(`Annualized 20-day realized volatility is ${riskMetrics.annualizedVolatilityPct.toFixed(1)}%, classified as ${riskMetrics.riskLevel || "unavailable"} risk.`);
+  } else {
+    factors.push("Volatility-based risk context is unavailable because 21 consecutive daily closes are required.");
+  }
+
+  if (
+    Number.isFinite(sentiment?.score) &&
+    sentiment.score >= 0 &&
+    sentiment.score <= 100 &&
+    typeof sentiment.classification === "string" &&
+    sentiment.classification.trim()
+  ) {
+    factors.push(`The Alternative.me Fear & Greed Index is ${sentiment.classification.trim()} at ${sentiment.score}/100; this external sentiment reading does not affect the baseline target.`);
+  } else {
+    factors.push("Market sentiment is unavailable, so no external sentiment reading is included in this context.");
+  }
+
+  return factors;
+}

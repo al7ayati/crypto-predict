@@ -187,6 +187,10 @@ export default function App() {
             symbol={selectedSymbol}
             fromDate={historicalFromDate}
             toDate={historicalToDate}
+            onApplyRange={(from, to) => {
+              setHistoricalFromDate(from);
+              setHistoricalToDate(to);
+            }}
           />
         );
       case "backtest":

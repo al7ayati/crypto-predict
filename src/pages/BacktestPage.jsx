@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Bar, BarChart, CartesianGrid, Cell, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ArrowDownRight, ArrowUpRight, ChartNoAxesCombined, CircleHelp } from "lucide-react";
 import { ANALYTICS_CONFIG } from "../config/analytics.js";
 import { BINANCE_MARKET_DATA_URL, fetchPriceHistory, MARKET_ASSETS, toDailyPrices } from "../services/marketData";
@@ -11,10 +11,23 @@ const { backtest } = ANALYTICS_CONFIG;
 const startDate = () => new Date(Date.now() - backtest.historyLookbackCalendarDays * 86_400_000).toISOString().slice(0, 10);
 const endDate = () => new Date().toISOString().slice(0, 10);
 
+function EquityCurveTooltip({ active, payload, label }) {
+  if (!active || !payload?.length) return null;
+  return <div className="backtest-equity-tooltip">
+    <strong>{label} UTC</strong>
+    {payload.map((entry) => <span key={entry.dataKey} style={{ color: entry.color }}>
+      <i style={{ backgroundColor: entry.color }} />
+      {entry.name}: {Number.isFinite(entry.value) ? `${Number(entry.value).toFixed(2)}%` : "Unavailable"}
+    </span>)}
+  </div>;
+}
+
 export default function BacktestPage() {
   const [period, setPeriod] = useState(backtest.periodsDays.at(-1));
   const [assetFilter, setAssetFilter] = useState("All");
   const [outcomeFilter, setOutcomeFilter] = useState("All");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [showBuyAndHold, setShowBuyAndHold] = useState(false);
   const [dateRange, setDateRange] = useState(() => ({ from: startDate(), to: endDate() }));
   const { from, to } = dateRange;
   useEffect(() => {
@@ -55,6 +68,18 @@ export default function BacktestPage() {
     .map(({ asset, daily }) => ({ asset, daily, result: backtestMovingAverage(asset.symbol, daily, period) })), [assetFilter, loaded, period]);
   const summary = useMemo(() => summarizeBacktest(selectedResults.map(({ result }) => result)), [selectedResults]);
   const filteredTrades = summary.trades.filter((trade) => outcomeFilter === "All" || (trade.pnlPct >= 0 ? "Profit" : "Loss") === outcomeFilter);
+  const pageSize = 10;
+  const pageCount = Math.max(1, Math.ceil(filteredTrades.length / pageSize));
+  const page = Math.min(currentPage, pageCount);
+  const paginatedTrades = filteredTrades.slice((page - 1) * pageSize, page * pageSize);
+  const setTradeAssetFilter = (value) => {
+    setAssetFilter(value);
+    setCurrentPage(1);
+  };
+  const setTradeOutcomeFilter = (value) => {
+    setOutcomeFilter(value);
+    setCurrentPage(1);
+  };
   const metrics = [
     { label: `Net strategy return · ${period}D`, value: `${summary.totalReturnPct >= 0 ? "+" : ""}${summary.totalReturnPct.toFixed(2)}%`, note: "Equal-weight portfolio · after modeled fees" },
     { label: "Closed hypothetical trades", value: String(summary.tradeCount), note: "Includes liquidation at the period end" },
@@ -75,12 +100,53 @@ export default function BacktestPage() {
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
         <div className="mb-4"><h3 className="text-base font-bold text-slate-900">Weekly portfolio return</h3><p className="mt-1 text-xs text-slate-500">Compounded equal-weight strategy return for each UTC week · percent</p></div>
         <div className="h-[260px] w-full"><ResponsiveContainer width="100%" height="100%"><BarChart data={summary.weeklyReturns} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}><CartesianGrid stroke="#edf1f7" strokeDasharray="4 5" vertical={false} /><XAxis dataKey="week" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: "#8290a5" }} /><YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: "#8290a5" }} tickFormatter={(value) => `${value}%`} width={45} /><ReferenceLine y={0} stroke="#94a3b8" strokeWidth={1.25} /><Tooltip formatter={(value) => [`${Number(value).toFixed(2)}%`, "Weekly return"]} contentStyle={{ borderRadius: 12, borderColor: "#e5ebf4", fontSize: 12 }} /><Bar dataKey="returnPct" name="Weekly return" radius={[5, 5, 0, 0]} maxBarSize={38}>{summary.weeklyReturns.map((entry) => <Cell key={entry.week} fill={entry.returnPct >= 0 ? "#176b44" : "#b42335"} />)}</Bar></BarChart></ResponsiveContainer></div>
-        <p className="mt-3 text-[10px] leading-5 text-slate-400">A buy signal occurs when the daily observed price closes above its trailing {backtest.movingAveragePeriod}-observation simple moving average; a sell signal occurs below it. Signals take effect after the observed close, with an idealized close-price fill. Open positions are liquidated at the final close. A {(ROUND_TRIP_FEE_PCT / 2).toFixed(1)}% fee per fill is modeled ({ROUND_TRIP_FEE_PCT.toFixed(1)}% round trip). No slippage, spreads, taxes, benchmark comparison, or risk-adjusted returns are modeled.</p>
+        <p className="mt-3 text-[10px] leading-5 text-slate-400">A buy signal occurs when the daily observed price closes above its trailing {backtest.movingAveragePeriod}-observation simple moving average; a sell signal occurs below it. Signals take effect after the observed close, with an idealized close-price fill. Open positions are liquidated at the final close. A {(ROUND_TRIP_FEE_PCT / 2).toFixed(1)}% fee per fill is modeled ({ROUND_TRIP_FEE_PCT.toFixed(1)}% round trip). The Buy &amp; Hold benchmark is passive, starts at the same first date per asset, and does not include fees. No slippage, spreads, taxes, or risk-adjusted returns are modeled.</p>
+      </section>
+
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <div><h3 className="text-base font-bold text-slate-900">Cumulative portfolio return</h3><p className="mt-1 text-xs text-slate-500">Equal-weight daily portfolio return compounded over the selected period · percent</p></div>
+          <label className="backtest-benchmark-toggle"><input type="checkbox" checked={showBuyAndHold} onChange={(event) => setShowBuyAndHold(event.target.checked)} /><span>Compare Buy &amp; Hold</span></label>
+        </div>
+        <div className="h-[280px] w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={summary.equityCurve} margin={{ top: 8, right: 12, left: 2, bottom: 0 }}>
+              <CartesianGrid stroke="#edf1f7" strokeDasharray="4 5" vertical={false} />
+              <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: "#8290a5" }} minTickGap={28} />
+              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: "#8290a5" }} tickFormatter={(value) => `${Number(value).toFixed(0)}%`} width={48} />
+              <ReferenceLine y={0} stroke="#94a3b8" strokeWidth={1.25} />
+              <Tooltip content={<EquityCurveTooltip />} />
+              <Line type="monotone" dataKey="modelReturnPct" name="Model Strategy" stroke="#2563eb" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
+              {showBuyAndHold && <Line type="monotone" dataKey="buyHoldReturnPct" name="Buy & Hold" stroke="#f59e0b" strokeWidth={2} strokeDasharray="6 4" dot={false} activeDot={{ r: 4 }} />}
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-4 text-[10px] font-semibold">
+          <span className="text-blue-700">Model Strategy: {summary.totalReturnPct >= 0 ? "+" : ""}{summary.totalReturnPct.toFixed(2)}%</span>
+          {showBuyAndHold && <span className="text-amber-700">Buy &amp; Hold: {summary.buyHoldTotalReturnPct >= 0 ? "+" : ""}{summary.buyHoldTotalReturnPct.toFixed(2)}%</span>}
+        </div>
       </section>
 
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-100 px-5 py-5 sm:px-6"><div><h3 className="text-base font-bold text-slate-900">Closed hypothetical trades</h3><p className="mt-1 text-xs text-slate-500">Trades calculated from observed daily prices; not actual exchange orders.</p></div><div className="flex flex-wrap gap-2"><label className="sr-only" htmlFor="trade-asset-filter">Filter assets</label><select id="trade-asset-filter" value={assetFilter} onChange={(event) => setAssetFilter(event.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] font-medium text-slate-600"><option value="All">All loaded assets</option>{loaded.map(({ asset }) => <option key={asset.symbol} value={asset.symbol}>{asset.symbol}</option>)}</select><label className="sr-only" htmlFor="trade-outcome-filter">Filter outcome</label><select id="trade-outcome-filter" value={outcomeFilter} onChange={(event) => setOutcomeFilter(event.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] font-medium text-slate-600"><option value="All">All outcomes</option><option value="Profit">Profit</option><option value="Loss">Loss</option></select></div></div>
-        <div className="overflow-x-auto"><table className="backtest-trades-table w-full min-w-[680px] border-collapse text-left"><thead><tr className="bg-slate-50/80 text-[10px] font-semibold uppercase tracking-wider text-slate-400"><th className="px-6 py-3.5">Exit date (UTC)</th><th className="px-4 py-3.5">Asset</th><th className="px-4 py-3.5">Entry date (UTC)</th><th className="px-4 py-3.5">Entry → exit (USDT)</th><th className="px-6 py-3.5 text-right">Net simulated P&amp;L</th></tr></thead><tbody className="divide-y divide-slate-100">{filteredTrades.map((trade) => { const profitable = trade.pnlPct >= 0; return <tr key={`${trade.asset}-${trade.entryDate}-${trade.date}`} className={profitable ? "bg-emerald-50/30" : "bg-rose-50/30"}><td data-label="Exit date (UTC)" className="px-6 py-4 text-xs text-slate-600">{trade.date}</td><td data-label="Asset" className="px-4 py-4 text-xs font-bold text-slate-800">{trade.asset}</td><td data-label="Entry date (UTC)" className="px-4 py-4 text-xs text-slate-600">{trade.entryDate}</td><td data-label="Entry → exit (USDT)" className="px-4 py-4 text-xs tabular-nums text-slate-600">{trade.entryPrice.toLocaleString("en-US", { maximumFractionDigits: 8 })} → {trade.exitPrice.toLocaleString("en-US", { maximumFractionDigits: 8 })}</td><td data-label="Net simulated P&amp;L" className={`px-6 py-4 text-right text-xs font-bold tabular-nums ${profitable ? "text-emerald-700" : "text-rose-700"}`}><span className="inline-flex items-center gap-1">{profitable ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}{profitable ? "+" : ""}{trade.pnlPct.toFixed(2)}%</span></td></tr>; })}{!filteredTrades.length && <tr><td colSpan={5} className="px-6 py-10 text-center text-xs text-slate-500">No closed trades match these filters.</td></tr>}</tbody></table></div>
+        <div className="border-b border-slate-100 px-5 py-4 sm:px-6">
+          <div className="mb-3 flex flex-wrap items-center gap-2" role="group" aria-label="Filter trades by asset">
+            <span className="mr-1 text-[10px] font-semibold text-slate-500">Asset</span>
+            {[["All", "All Assets"], ...MARKET_ASSETS.map(({ symbol }) => [symbol, symbol])].map(([value, label]) => <button key={value} type="button" className={`backtest-filter-pill${assetFilter === value ? " is-active" : ""}`} aria-pressed={assetFilter === value} onClick={() => setTradeAssetFilter(value)}>{label}</button>)}
+          </div>
+          <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Filter trades by result">
+            <span className="mr-1 text-[10px] font-semibold text-slate-500">Result</span>
+            {[["All", "All Results"], ["Profit", "Profitable"], ["Loss", "Losses"]].map(([value, label]) => <button key={value} type="button" className={`backtest-filter-pill${outcomeFilter === value ? " is-active" : ""}`} aria-pressed={outcomeFilter === value} onClick={() => setTradeOutcomeFilter(value)}>{label}</button>)}
+          </div>
+        </div>
+        <div className="overflow-x-auto"><table className="backtest-trades-table w-full min-w-[680px] border-collapse text-left"><thead><tr className="bg-slate-50/80 text-[10px] font-semibold uppercase tracking-wider text-slate-400"><th className="px-6 py-3.5">Exit date (UTC)</th><th className="px-4 py-3.5">Asset</th><th className="px-4 py-3.5">Entry date (UTC)</th><th className="px-4 py-3.5">Entry → exit (USDT)</th><th className="px-6 py-3.5 text-right">Net simulated P&amp;L</th></tr></thead><tbody className="divide-y divide-slate-100">{paginatedTrades.map((trade) => { const profitable = trade.pnlPct >= 0; return <tr key={`${trade.asset}-${trade.entryDate}-${trade.date}`} className={`backtest-trade-row ${profitable ? "bg-emerald-50/30" : "bg-rose-50/30"}`}><td data-label="Exit date (UTC)" className="px-6 py-4 text-xs text-slate-600">{trade.date}</td><td data-label="Asset" className="px-4 py-4 text-xs font-bold text-slate-800">{trade.asset}</td><td data-label="Entry date (UTC)" className="px-4 py-4 text-xs text-slate-600">{trade.entryDate}</td><td data-label="Entry → exit (USDT)" className="px-4 py-4 text-xs tabular-nums text-slate-600">{trade.entryPrice.toLocaleString("en-US", { maximumFractionDigits: 8 })} → {trade.exitPrice.toLocaleString("en-US", { maximumFractionDigits: 8 })}</td><td data-label="Net simulated P&amp;L" className={`px-6 py-4 text-right text-xs font-bold tabular-nums ${profitable ? "text-emerald-700" : "text-rose-700"}`}><span className="inline-flex items-center gap-1">{profitable ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}{profitable ? "+" : ""}{trade.pnlPct.toFixed(2)}%</span></td></tr>; })}{!filteredTrades.length && <tr><td colSpan={5} className="px-6 py-10 text-center text-xs text-slate-500">No closed trades match these filters.</td></tr>}</tbody></table></div>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-5 py-3 sm:px-6">
+          <span className="text-[10px] text-slate-500">{filteredTrades.length ? `Showing ${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, filteredTrades.length)} of ${filteredTrades.length} trades` : "No trades to display"}</span>
+          <div className="flex items-center gap-2">
+            <button type="button" className="backtest-page-button" onClick={() => setCurrentPage((value) => Math.max(1, value - 1))} disabled={page <= 1}>Previous</button>
+            <span className="min-w-[64px] text-center text-[10px] font-semibold text-slate-500">Page {page} of {pageCount}</span>
+            <button type="button" className="backtest-page-button" onClick={() => setCurrentPage((value) => Math.min(pageCount, value + 1))} disabled={page >= pageCount}>Next</button>
+          </div>
+        </div>
         <p className="border-t border-slate-100 px-5 py-3 text-[10px] leading-5 text-slate-400 sm:px-6" role={error ? "status" : undefined}>{error ? `Showing cached results; data refresh note: ${error} ` : ""}Source: Binance Spot API · fetched {formatUtcTimestamp(fetchedAt)} · {loaded.length} of {MARKET_ASSETS.length} assets loaded. Results use completed UTC daily candles and USDT prices; fees are modeled, not actual exchange fees. <a href={BINANCE_MARKET_DATA_URL} target="_blank" rel="noreferrer" className="underline underline-offset-2">Data provider</a></p>
       </section>
     </>}

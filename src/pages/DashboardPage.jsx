@@ -1,5 +1,5 @@
-import React, { lazy, Suspense, useState } from "react";
-import { useQueries } from "@tanstack/react-query";
+import React, { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -17,6 +17,7 @@ import {
   BINANCE_MARKET_DATA_URL,
   COINGECKO_ATTRIBUTION_URL,
   calculateDailyPerformance,
+  fetchMarketSentiment,
   fetchSevenDayCandles,
   MARKET_ASSETS,
 } from "../services/marketData";
@@ -59,6 +60,53 @@ function formatPercent(value) {
   return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
 }
 
+function MiniTrendSparkline({ candles, symbol }) {
+  const [hoveredIndex, setHoveredIndex] = useState(null);
+  if (candles.length < 2) return <span className="mini-sparkline-empty">—</span>;
+
+  const min = Math.min(...candles.map(({ close }) => close));
+  const max = Math.max(...candles.map(({ close }) => close));
+  const points = candles.map((candle, index) => ({
+    ...candle,
+    x: 4 + (index / (candles.length - 1)) * 92,
+    y: max === min ? 16 : 4 + ((max - candle.close) / (max - min)) * 24,
+  }));
+  const hoveredPoint = hoveredIndex === null ? null : points[hoveredIndex];
+
+  return <span className="mini-sparkline-wrap">
+    {hoveredPoint && <span className="mini-sparkline-popover" style={{ left: `${Math.min(86, Math.max(14, hoveredPoint.x))}%` }}>
+      {hoveredPoint.date} · {formatUsdtPrice(hoveredPoint.close)}
+    </span>}
+    <svg
+      className={`mini-sparkline ${candles.at(-1).close >= candles[0].close ? "is-positive" : "is-negative"}`}
+      viewBox="0 0 100 32"
+      role="img"
+      aria-label={`${symbol} seven-day close price sparkline`}
+      tabIndex={0}
+      onPointerMove={(event) => {
+        const bounds = event.currentTarget.getBoundingClientRect();
+        const position = Math.max(0, Math.min(1, (event.clientX - bounds.left) / bounds.width));
+        setHoveredIndex(Math.round(position * (points.length - 1)));
+      }}
+      onPointerLeave={() => setHoveredIndex(null)}
+      onFocus={() => setHoveredIndex(points.length - 1)}
+      onBlur={() => setHoveredIndex(null)}
+      onKeyDown={(event) => {
+        if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+        event.preventDefault();
+        setHoveredIndex((index) => {
+          const currentIndex = index ?? points.length - 1;
+          const delta = event.key === "ArrowRight" ? 1 : -1;
+          return Math.max(0, Math.min(points.length - 1, currentIndex + delta));
+        });
+      }}
+    >
+      <polyline points={points.map(({ x, y }) => `${x},${y}`).join(" ")} />
+      {hoveredPoint && <circle cx={hoveredPoint.x} cy={hoveredPoint.y} r="3" />}
+    </svg>
+  </span>;
+}
+
 function StatCard({ stat, index }) {
   const Icon = STAT_ICONS[index] || BarChart3;
   const IconChange = stat.changePct === null ? null : stat.changePct >= 0 ? ArrowUpRight : ArrowDownRight;
@@ -76,20 +124,61 @@ function StatCard({ stat, index }) {
   </article>;
 }
 
-function PulseCard({ label, asset, value, tone = "neutral", description }) {
+function PulseCard({ label, asset, value, tone = "neutral", description, progress }) {
   const Icon = tone === "positive" ? TrendingUp : tone === "negative" ? TrendingDown : Info;
   return <article className={`pulse-card is-${tone}`}>
     <span className="pulse-card-icon"><Icon size={16} aria-hidden="true" /></span>
     <span className="pulse-card-label">{label}</span>
     <strong>{asset || "—"}</strong>
     <span className="pulse-card-value">{value}</span>
+    {progress && <div className="pulse-card-progress" role="img" aria-label={progress.label}>
+      <span className="is-advancing" style={{ width: `${progress.advancing}%` }} />
+      <span className="is-declining" style={{ width: `${progress.declining}%` }} />
+      <span className="is-unchanged" style={{ width: `${progress.unchanged}%` }} />
+    </div>}
     <span className="pulse-card-description">{description}</span>
   </article>;
 }
 
 export default function DashboardPage({ marketData, liveTradePrices = {}, tradeStreamStatus = "offline", onRefresh, onCreateAlert }) {
   const [selectedTrendSymbol, setSelectedTrendSymbol] = useState("BTC");
+  const [priceFlashes, setPriceFlashes] = useState({});
+  const previousTradePrices = useRef({});
+  const flashTimers = useRef(new Map());
+  const flashSequence = useRef(0);
   const snapshot = marketData.snapshot;
+  const sentimentQuery = useQuery({
+    queryKey: ["market-sentiment"],
+    queryFn: ({ signal }) => fetchMarketSentiment(signal),
+    staleTime: 15 * 60 * 1000,
+    refetchInterval: 15 * 60 * 1000,
+  });
+  useEffect(() => {
+    Object.entries(liveTradePrices).forEach(([symbol, quote]) => {
+      const previous = previousTradePrices.current[symbol];
+      previousTradePrices.current[symbol] = quote;
+      if (!previous || quote.timestamp === previous.timestamp || quote.price === previous.price) return;
+
+      const direction = quote.price > previous.price ? "up" : "down";
+      const sequence = ++flashSequence.current;
+      setPriceFlashes((current) => ({ ...current, [symbol]: { direction, sequence } }));
+      window.clearTimeout(flashTimers.current.get(symbol));
+      const timer = window.setTimeout(() => {
+        setPriceFlashes((current) => {
+          if (current[symbol]?.sequence !== sequence) return current;
+          const next = { ...current };
+          delete next[symbol];
+          return next;
+        });
+        if (flashTimers.current.get(symbol) === timer) flashTimers.current.delete(symbol);
+      }, 400);
+      flashTimers.current.set(symbol, timer);
+    });
+  }, [liveTradePrices]);
+  useEffect(() => () => {
+    flashTimers.current.forEach((timer) => window.clearTimeout(timer));
+    flashTimers.current.clear();
+  }, []);
   const bySymbol = new Map((snapshot?.assets || []).map((asset) => [asset.symbol, asset]));
   const assets = MARKET_ASSETS.map((asset) => ({ ...asset, ...bySymbol.get(asset.symbol) }));
   const todayUtc = new Date().toISOString().slice(0, 10);
@@ -119,6 +208,7 @@ export default function DashboardPage({ marketData, liveTradePrices = {}, tradeS
     .filter((asset) => Number.isFinite(asset.sevenDayChangePct));
   const advancingCount = availableDailyPerformance.filter((asset) => asset.dailyChangePct > 0).length;
   const decliningCount = availableDailyPerformance.filter((asset) => asset.dailyChangePct < 0).length;
+  const breadthTotal = availableDailyPerformance.length;
   const weeklyMovers = [...availableWeeklyPerformance].sort((left, right) => left.sevenDayChangePct - right.sevenDayChangePct);
   const weakestWeeklyMover = weeklyMovers[0];
   const strongestWeeklyMover = weeklyMovers.at(-1);
@@ -199,6 +289,12 @@ export default function DashboardPage({ marketData, liveTradePrices = {}, tradeS
           value={`${availableDailyPerformance.length}/${MARKET_ASSETS.length} assets`}
           description="Change between consecutive completed UTC daily closes"
           tone={advancingCount > decliningCount ? "positive" : decliningCount > advancingCount ? "negative" : "neutral"}
+          progress={breadthTotal ? {
+            label: `${advancingCount} advancing, ${decliningCount} declining, ${breadthTotal - advancingCount - decliningCount} unchanged out of ${breadthTotal} available assets`,
+            advancing: (advancingCount / breadthTotal) * 100,
+            declining: (decliningCount / breadthTotal) * 100,
+            unchanged: ((breadthTotal - advancingCount - decliningCount) / breadthTotal) * 100,
+          } : null}
         />
         <PulseCard
           label="Strongest 7D"
@@ -214,8 +310,16 @@ export default function DashboardPage({ marketData, liveTradePrices = {}, tradeS
           description="Return over seven elapsed UTC days"
           tone={weakestTone}
         />
+        <PulseCard
+          label="Fear & Greed Index"
+          asset={sentimentQuery.data?.classification || (sentimentQuery.isPending ? "Loading" : "Unavailable")}
+          value={sentimentQuery.data ? `${sentimentQuery.data.score}/100` : "—"}
+          description={sentimentQuery.isError
+            ? `Alternative.me unavailable: ${sentimentQuery.error.message}`
+            : "Alternative.me market sentiment · 0–100"}
+          tone={sentimentQuery.data?.score >= 55 ? "positive" : sentimentQuery.data?.score <= 45 ? "negative" : "neutral"}
+        />
       </div>
-
       <div className="daily-analysis-grid">
         <section className="daily-trend-panel" aria-labelledby="daily-trend-heading">
           <div className="daily-trend-heading">
@@ -314,12 +418,18 @@ export default function DashboardPage({ marketData, liveTradePrices = {}, tradeS
           </tr></thead>
           <tbody className="divide-y divide-slate-100">{assets.map((asset) => {
             const performance = performanceBySymbol.get(asset.symbol);
-            return <tr key={asset.symbol} className="transition hover:bg-slate-50/70">
+            const priceFlash = priceFlashes[asset.symbol];
+            return <tr key={`${asset.symbol}-${priceFlash?.sequence || 0}`} className={`transition hover:bg-slate-50/70${priceFlash ? ` price-flash-${priceFlash.direction}` : ""}`}>
               <td data-label="Asset" className="px-6 py-4"><div className="flex items-center gap-3"><span className="market-asset-icon">{asset.imageUrl && <img src={asset.imageUrl} alt="" loading="lazy" onError={(event) => { event.currentTarget.hidden = true; }} />}<span>{asset.symbol}</span></span><span><strong className="block text-sm font-semibold text-slate-800">{asset.name}</strong><span className="mt-0.5 block text-[11px] text-slate-400">{asset.symbol}</span></span></div></td>
               <td data-label="Last trade" className="px-4 py-4 text-sm font-semibold tabular-nums text-slate-800">{formatQuote(asset, freshTrade(asset.symbol))}<span className="block text-[9px] font-normal text-slate-400">{freshTrade(asset.symbol) ? `Binance Spot · ${formatTime(new Date(liveTradePrices[asset.symbol].timestamp).toISOString())}` : "CoinGecko aggregated USD"}</span></td>
               <td data-label="24h change · USD" className="px-4 py-4 text-sm font-semibold tabular-nums"><span className={`market-change-badge ${!Number.isFinite(asset.change24hPct) ? "is-neutral" : asset.change24hPct >= 0 ? "is-positive" : "is-negative"}`} aria-label={Number.isFinite(asset.change24hPct) ? `CoinGecko aggregated 24-hour change ${asset.change24hPct >= 0 ? "up" : "down"} ${Math.abs(asset.change24hPct).toFixed(2)} percent` : "24-hour change unavailable"}>{Number.isFinite(asset.change24hPct) ? formatPercent(asset.change24hPct) : "—"}</span></td>
               <td data-label="1D close · USDT" className={`px-4 py-4 text-sm font-semibold tabular-nums ${performance.dailyChangePct > 0 ? "is-positive" : performance.dailyChangePct < 0 ? "is-negative" : ""}`}>{performance.isLoading && !performance.candles.length ? "Loading" : formatPercent(performance.dailyChangePct)}</td>
-              <td data-label="7D return · USDT" className={`px-4 py-4 text-sm font-semibold tabular-nums ${performance.sevenDayChangePct > 0 ? "is-positive" : performance.sevenDayChangePct < 0 ? "is-negative" : ""}`} title={performance.sevenDayChangePct === null ? "Requires eight consecutive completed UTC daily closes." : "Seven UTC calendar-day return from Binance Spot closes."}>{performance.isLoading && !performance.candles.length ? "Loading" : formatPercent(performance.sevenDayChangePct)}</td>
+              <td data-label="7D return · USDT" className={`px-4 py-4 text-sm font-semibold tabular-nums ${performance.sevenDayChangePct > 0 ? "is-positive" : performance.sevenDayChangePct < 0 ? "is-negative" : ""}`} title={performance.sevenDayChangePct === null ? "Requires eight consecutive completed UTC daily closes." : "Seven UTC calendar-day return from Binance Spot closes."}>
+                <span className="market-trend-cell">
+                  {performance.isLoading && !performance.candles.length ? "Loading" : formatPercent(performance.sevenDayChangePct)}
+                  <MiniTrendSparkline candles={performance.candles} symbol={asset.symbol} />
+                </span>
+              </td>
               <td data-label="24h volume · USD" className="px-4 py-4 text-sm text-slate-600">{compactCurrency(asset.volume24hUsd)}</td>
               <td data-label="Market cap · USD" className="px-6 py-4 text-sm text-slate-600">{compactCurrency(asset.marketCapUsd)}</td>
             </tr>;

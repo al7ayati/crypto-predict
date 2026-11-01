@@ -3,12 +3,13 @@ import { useQuery } from "@tanstack/react-query";
 import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { AlertTriangle, BellPlus, Info } from "lucide-react";
 import { ANALYTICS_CONFIG } from "../config/analytics.js";
-import { BINANCE_MARKET_DATA_URL, fetchPriceHistory, toDailyPrices } from "../services/marketData";
+import { BINANCE_MARKET_DATA_URL, fetchMarketSentiment, fetchPriceHistory, toDailyPrices } from "../services/marketData";
 import {
   calculateDailyTrendSignal,
   calculateRiskMetrics,
   calculateTechnicalIndicators,
   calculateTrendBaseline,
+  generateHumanFactors,
 } from "../services/technicalIndicators";
 import { formatUtcTimestamp } from "../utils/formatting";
 
@@ -64,9 +65,12 @@ function formatRiskLevel(level) {
 }
 
 export default function PredictionPage({ assetData, onCreateAlert }) {
-  const [horizon, setHorizon] = useState(HORIZONS[1]);
+  const [horizonDays, setHorizonDays] = useState(HORIZONS[1].days);
   const [visibleIndicators, setVisibleIndicators] = useState([]);
+  const [riskTargets, setRiskTargets] = useState({ stopLoss: false, takeProfit: false });
+  const [hoveredRiskTarget, setHoveredRiskTarget] = useState(null);
   const [range, setRange] = useState(getHistoryRange);
+  const horizon = { days: horizonDays, label: horizonDays === 1 ? "24H" : `${horizonDays}D` };
   useEffect(() => {
     const intervalId = window.setInterval(() => {
       const next = getHistoryRange();
@@ -90,6 +94,12 @@ export default function PredictionPage({ assetData, onCreateAlert }) {
   const state = historyQuery.isPending && !historyQuery.data ? "loading" : historyQuery.isError && !historyQuery.data ? "error" : "ready";
   const error = historyQuery.error?.message || "";
   const fetchedAt = historyQuery.dataUpdatedAt ? new Date(historyQuery.dataUpdatedAt).toISOString() : null;
+  const sentimentQuery = useQuery({
+    queryKey: ["market-sentiment"],
+    queryFn: ({ signal }) => fetchMarketSentiment(signal),
+    staleTime: 15 * 60 * 1000,
+    refetchInterval: 15 * 60 * 1000,
+  });
 
   const analysis = useMemo(() => {
     if (!observations.length) return null;
@@ -110,6 +120,7 @@ export default function PredictionPage({ assetData, onCreateAlert }) {
     const hasCurrentQuote = Number.isFinite(assetData.currentPrice);
     const riskMetrics = calculateRiskMetrics(observations, last.price, horizon.days, baseline.targetPrice);
     const trendSignal = calculateDailyTrendSignal(indicators.at(-1), baseline.meanDailyLogReturn);
+    const humanFactors = generateHumanFactors(indicators.at(-1), riskMetrics, sentimentQuery.data);
     const recentObservations = observations.slice(-prediction.baselineObservationIntervals - 1);
     const weightedIntervals = recentObservations.slice(1).map((current, index) => {
       const previous = recentObservations[index];
@@ -125,8 +136,8 @@ export default function PredictionPage({ assetData, onCreateAlert }) {
     });
     return { chart, lastPrice: hasCurrentQuote ? assetData.currentPrice : last.price, lastPriceQuote: hasCurrentQuote ? assetData.currentPriceQuote : "USDT", historyPrice: last.price, rsi: indicators.at(-1)?.rsi, meanReturnPct: baseline.meanDailyLogReturnPct,
       targetPrice: baseline.targetPrice, estimatedChangePct: baseline.estimatedChangePct,
-      riskMetrics, trendSignal, weightedIntervals, observationDate: last.date };
-  }, [assetData.currentPrice, assetData.currentPriceQuote, horizon.days, observations]);
+      riskMetrics, trendSignal, weightedIntervals, humanFactors, observationDate: last.date };
+  }, [assetData.currentPrice, assetData.currentPriceQuote, horizon.days, observations, sentimentQuery.data]);
 
   const toggleIndicator = (indicator) => setVisibleIndicators((current) => current.includes(indicator)
     ? current.filter((value) => value !== indicator)
@@ -146,7 +157,7 @@ export default function PredictionPage({ assetData, onCreateAlert }) {
       <div className="mt-5 flex flex-wrap items-center gap-3">
         <span className="text-[10px] font-semibold uppercase tracking-wider text-blue-100/60">Projection horizon</span>
         <div className="flex rounded-xl border border-white/15 bg-white/10 p-1" role="group" aria-label="Projection horizon">
-          {HORIZONS.map((option) => <button key={option.label} type="button" onClick={() => setHorizon(option)} aria-pressed={horizon.label === option.label} className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${horizon.label === option.label ? "bg-white text-navy-950" : "text-blue-100/75 hover:text-white"}`}>{option.label}</button>)}
+          {HORIZONS.map((option) => <button key={option.label} type="button" onClick={() => setHorizonDays(option.days)} aria-pressed={horizonDays === option.days} className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors duration-200 ${horizonDays === option.days ? "bg-white text-navy-950" : "text-blue-100/75 hover:text-white"}`}>{option.label}</button>)}
         </div>
       </div>
     </section>
@@ -155,10 +166,20 @@ export default function PredictionPage({ assetData, onCreateAlert }) {
     {state === "error" && <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-800">{error} No forecast is shown without source data.</p>}
     {state === "ready" && analysis && <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1.7fr)_minmax(270px,.8fr)]">
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-        <div className="mb-5 flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-base font-bold text-slate-900">Observed prices and baseline</h3><p className="mt-1 text-xs text-slate-500">Last {prediction.chartHistoryDays} completed Binance Spot daily closes · {assetData.symbol}/USDT · UTC. Indicators use up to {prediction.historyCalendarDays - 1} candles for warm-up.</p></div><div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[10px] text-slate-500"><span className="inline-flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-blue-600" />Observed history</span><span className="inline-flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-violet-500" />Trend baseline</span>{activeChartIndicators.map(({ key, label, color }) => <span key={key} className="inline-flex items-center gap-1.5"><i className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />{label}</span>)}</div></div>
-        <div className="h-[290px] w-full"><ResponsiveContainer width="100%" height="100%"><LineChart data={analysis.chart} margin={{ top: 10, right: 12, left: 3, bottom: 3 }}>
+        <div className="prediction-chart-header">
+          <div><h3 className="text-base font-bold text-slate-900">Observed prices and baseline</h3><p className="mt-1 text-xs text-slate-500">Last {prediction.chartHistoryDays} completed Binance Spot daily closes · {assetData.symbol}/USDT · UTC. Indicators use up to {prediction.historyCalendarDays - 1} candles for warm-up.</p></div>
+          <label className="forecast-horizon-control">
+            <span>Baseline horizon <strong>{horizon.label}</strong></span>
+            <input type="range" min="1" max="30" step="1" value={horizonDays} onChange={(event) => setHorizonDays(Number(event.target.value))} aria-label="Baseline forecast horizon in days" aria-valuetext={`${horizonDays} ${horizonDays === 1 ? "day" : "days"}`} />
+            <span className="forecast-horizon-limits"><span>1D</span><span>30D</span></span>
+          </label>
+          <div className="prediction-chart-legend"><span className="inline-flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-blue-600" />Observed history</span><span className="inline-flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-violet-500" />Trend baseline</span>{activeChartIndicators.map(({ key, label, color }) => <span key={key} className="inline-flex items-center gap-1.5"><i className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />{label}</span>)}</div>
+        </div>
+        <div className="h-[290px] w-full" id="prediction-main-chart"><ResponsiveContainer width="100%" height="100%"><LineChart data={analysis.chart} margin={{ top: 10, right: 12, left: 3, bottom: 3 }}>
           <CartesianGrid stroke="#edf1f7" strokeDasharray="4 5" vertical={false} /><XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: "#8290a5" }} minTickGap={24} /><YAxis domain={["auto", "auto"]} axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: "#8290a5" }} tickFormatter={(value) => value < 1 ? `${Number(value).toFixed(4)}` : Number(value).toLocaleString("en-US", { notation: "compact", maximumFractionDigits: 1 })} width={55} /><Tooltip formatter={formatTooltipPrice} contentStyle={{ borderRadius: 12, borderColor: "#e5ebf4", fontSize: 12 }} /><ReferenceLine x={analysis.chart[Math.max(0, analysis.chart.length - horizon.days - 1)]?.label} stroke="#64748b" strokeDasharray="4 4" />
           {visibleIndicators.includes("bollinger") && <>{dataLine("bollingerUpper", `${indicatorConfig.bollingerPeriod}-period upper band`, "#c4b5fd")}{dataLine("bollingerLower", `${indicatorConfig.bollingerPeriod}-period lower band`, "#c4b5fd")}</>}{dataLine("actual", "Observed price", "#2563eb")}{dataLine("forecast", "Trend baseline", "#8b5cf6", true)}{visibleIndicators.includes("ema20") && dataLine("ema20", `EMA ${indicatorConfig.emaPeriods[0]}`, "#f59e0b")}{visibleIndicators.includes("ema50") && dataLine("ema50", `EMA ${indicatorConfig.emaPeriods[1]}`, "#10b981")}
+          {analysis.riskMetrics && Number.isFinite(analysis.riskMetrics.stopLoss) && (riskTargets.stopLoss || hoveredRiskTarget === "stopLoss") && <ReferenceLine y={analysis.riskMetrics.stopLoss} stroke="#ef4444" strokeDasharray="6 4" label={{ value: `Stop Loss ${formatPrice(analysis.riskMetrics.stopLoss)}`, position: "insideTopRight", fill: "#dc2626", fontSize: 10 }} />}
+          {analysis.riskMetrics && Number.isFinite(analysis.riskMetrics.takeProfit) && (riskTargets.takeProfit || hoveredRiskTarget === "takeProfit") && <ReferenceLine y={analysis.riskMetrics.takeProfit} stroke="#22c55e" strokeDasharray="6 4" label={{ value: `Take Profit ${formatPrice(analysis.riskMetrics.takeProfit)}`, position: "insideTopRight", fill: "#15803d", fontSize: 10 }} />}
         </LineChart></ResponsiveContainer></div>
         <div className="mt-4 flex flex-wrap items-center gap-2" role="group" aria-label="Toggle technical indicators"><span className="mr-1 text-[10px] font-semibold text-slate-500">Indicators</span>{INDICATOR_OPTIONS.map(({ key, label }) => <button key={key} type="button" aria-pressed={visibleIndicators.includes(key)} onClick={() => toggleIndicator(key)} className={`rounded-lg border px-2.5 py-1.5 text-[10px] font-semibold ${visibleIndicators.includes(key) ? "border-blue-200 bg-blue-50 text-blue-700" : "border-slate-200 text-slate-500 hover:bg-slate-50"}`}>{label}</button>)}</div>
         {visibleIndicators.includes("rsi") && <div className="mt-5 border-t border-slate-100 pt-4">
@@ -199,6 +220,10 @@ export default function PredictionPage({ assetData, onCreateAlert }) {
             <div><span>Scenario reward / risk</span><strong>{Number.isFinite(analysis.riskMetrics?.riskRewardRatio) ? `${analysis.riskMetrics.riskRewardRatio.toFixed(2)} : 1` : "Unavailable"}</strong></div>
             <div><span>Implied baseline change</span><strong className={analysis.estimatedChangePct >= 0 ? "is-positive" : "is-negative"}>{analysis.estimatedChangePct >= 0 ? "+" : ""}{analysis.estimatedChangePct.toFixed(2)}%</strong></div>
           </div>
+          <div className="risk-overlay-actions" role="group" aria-label="Show risk levels on the price chart">
+            <button type="button" className={`risk-overlay-toggle is-stop-loss${riskTargets.stopLoss ? " is-active" : ""}`} aria-pressed={riskTargets.stopLoss} aria-controls="prediction-main-chart" disabled={!Number.isFinite(analysis.riskMetrics?.stopLoss)} onClick={() => setRiskTargets((current) => ({ ...current, stopLoss: !current.stopLoss }))} onMouseEnter={() => setHoveredRiskTarget("stopLoss")} onMouseLeave={() => setHoveredRiskTarget(null)} onFocus={() => setHoveredRiskTarget("stopLoss")} onBlur={() => setHoveredRiskTarget(null)}>Show Stop Loss</button>
+            <button type="button" className={`risk-overlay-toggle is-take-profit${riskTargets.takeProfit ? " is-active" : ""}`} aria-pressed={riskTargets.takeProfit} aria-controls="prediction-main-chart" disabled={!Number.isFinite(analysis.riskMetrics?.takeProfit)} onClick={() => setRiskTargets((current) => ({ ...current, takeProfit: !current.takeProfit }))} onMouseEnter={() => setHoveredRiskTarget("takeProfit")} onMouseLeave={() => setHoveredRiskTarget(null)} onFocus={() => setHoveredRiskTarget("takeProfit")} onBlur={() => setHoveredRiskTarget(null)}>Show Take Profit</button>
+          </div>
           <button type="button" className="prediction-create-alert" onClick={() => onCreateAlert?.(assetData.symbol)}>
             <BellPlus size={15} aria-hidden="true" /> Create a price or signal alert
           </button>
@@ -231,9 +256,9 @@ export default function PredictionPage({ assetData, onCreateAlert }) {
             ))}
           </div>
           <div className="context-only-features">
-            <h4>Context only · 0% target weight</h4>
-            <p><FeatureTooltip label="Technical indicator context">RSI is Wilder-smoothed over 14 price changes. EMA20 and EMA50 use their configured lookback windows. Bollinger bands use the configured 20-close population standard deviation. These are chart overlays only; they do not influence the projected target.</FeatureTooltip> RSI14, EMA20/50, and Bollinger bands are not inputs to this baseline.</p>
-            <p><FeatureTooltip label="Unavailable external factors">No on-chain flow, derivatives positioning, order-book imbalance, news, or sentiment feed is connected to this app.</FeatureTooltip> On-chain flow and market sentiment are not connected; no weights are invented for unavailable data.</p>
+            <h4>Dynamic technical factors · context only</h4>
+            <p>These observations explain market context; they do not change the historical trend baseline or target.</p>
+            <ul>{analysis.humanFactors.map((factor) => <li key={factor}>{factor}</li>)}</ul>
           </div>
         </section>
 

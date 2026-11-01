@@ -2,10 +2,59 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   calculateDailyPerformance,
+  fetchMarketSentiment,
   fetchPriceHistory,
   fetchSevenDayCandles,
   toDailyPrices,
 } from "./marketData.js";
+
+test("fetchMarketSentiment parses and validates the latest Alternative.me index", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestUrl;
+  let requestOptions;
+  globalThis.fetch = async (url, options) => {
+    requestUrl = new URL(url);
+    requestOptions = options;
+    return {
+      ok: true,
+      json: async () => ({
+        data: [{ value: "72", value_classification: "Greed", timestamp: "1793550000" }],
+      }),
+    };
+  };
+  const controller = new AbortController();
+
+  try {
+    assert.deepEqual(await fetchMarketSentiment(controller.signal), {
+      score: 72,
+      classification: "Greed",
+      timestamp: "1793550000",
+    });
+    assert.equal(requestUrl.hostname, "api.alternative.me");
+    assert.equal(requestUrl.pathname, "/fng/");
+    assert.equal(requestUrl.searchParams.get("limit"), "1");
+    assert.equal(requestOptions.signal, controller.signal);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("fetchMarketSentiment reports provider and invalid-response errors", async () => {
+  const originalFetch = globalThis.fetch;
+
+  try {
+    globalThis.fetch = async () => ({ ok: false, status: 503 });
+    await assert.rejects(fetchMarketSentiment(), /Alternative\.me returned HTTP 503/);
+
+    globalThis.fetch = async () => ({
+      ok: true,
+      json: async () => ({ data: [{ value: "101", value_classification: "Greed" }] }),
+    });
+    await assert.rejects(fetchMarketSentiment(), /invalid Fear & Greed Index response/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
 
 function candle(timestamp, close = 105) {
   return [

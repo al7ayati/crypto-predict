@@ -22,17 +22,26 @@ test("moving-average backtest charges modeled entry and range-end liquidation fe
   const summary = summarizeBacktest([result]);
   assert.equal(summary.tradeCount, 1);
   assert.ok(Math.abs(summary.totalReturnPct / 100 - expectedReturn) < 1e-12);
+  assert.equal(summary.equityCurve.length, 2);
+  assert.ok(Math.abs(summary.equityCurve[0].modelReturnPct + ROUND_TRIP_FEE_PCT / 2) < 1e-12);
+  assert.ok(Math.abs(summary.buyHoldTotalReturnPct - ((110 / 100) - 1) * 100) < 1e-12);
+  assert.ok(Math.abs(summary.equityCurve.at(-1).buyHoldReturnPct - summary.buyHoldTotalReturnPct) < 1e-12);
 });
 
 test("portfolio summary equally weights same-day returns and compounds weekly returns", () => {
   const summary = summarizeBacktest([
-    { trades: [], dailyReturns: [{ date: "2026-01-05", return: 0.1 }] },
-    { trades: [], dailyReturns: [{ date: "2026-01-05", return: 0 }] },
-    { trades: [], dailyReturns: [{ date: "2026-01-06", return: -0.02 }] },
+    { trades: [], dailyReturns: [{ date: "2026-01-05", return: 0.1, buyHoldReturn: 0.2 }] },
+    { trades: [], dailyReturns: [{ date: "2026-01-05", return: 0, buyHoldReturn: 0 }] },
+    { trades: [], dailyReturns: [{ date: "2026-01-06", return: -0.02, buyHoldReturn: -0.1 }] },
   ]);
   const expectedEquity = 1.05 * 0.98;
+  const expectedBuyHoldEquity = 1.1 * 0.9;
 
   assert.ok(Math.abs(summary.totalReturnPct - (expectedEquity - 1) * 100) < 1e-12);
+  assert.ok(Math.abs(summary.buyHoldTotalReturnPct - (expectedBuyHoldEquity - 1) * 100) < 1e-12);
+  assert.equal(summary.equityCurve.length, 2);
+  assert.ok(Math.abs(summary.equityCurve.at(-1).modelReturnPct - (expectedEquity - 1) * 100) < 1e-12);
+  assert.ok(Math.abs(summary.equityCurve.at(-1).buyHoldReturnPct - (expectedBuyHoldEquity - 1) * 100) < 1e-12);
   assert.equal(summary.weeklyReturns.length, 1);
   assert.equal(summary.weeklyReturns[0].week, "2026-01-05");
   assert.ok(Math.abs(summary.weeklyReturns[0].returnPct - (expectedEquity - 1) * 100) < 1e-12);

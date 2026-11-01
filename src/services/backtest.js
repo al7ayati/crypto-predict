@@ -45,7 +45,13 @@ export function backtestMovingAverage(asset, dailyPrices, days = ANALYTICS_CONFI
         entryDate = null;
       }
     }
-    if (point.date >= firstOutputDate) dailyReturns.push({ date: point.date, return: dailyReturn });
+    if (point.date >= firstOutputDate) {
+      dailyReturns.push({
+        date: point.date,
+        return: dailyReturn,
+        buyHoldReturn: point.price / previous.price - 1,
+      });
+    }
   }
 
   return { asset, dailyReturns, trades };
@@ -54,16 +60,33 @@ export function backtestMovingAverage(asset, dailyPrices, days = ANALYTICS_CONFI
 export function summarizeBacktest(results) {
   const returnsByDate = new Map();
   const returnsPerDate = new Map();
-  results.forEach(({ dailyReturns }) => dailyReturns.forEach(({ date, return: dailyReturn }) => {
+  const benchmarkReturnsByDate = new Map();
+  const benchmarkReturnsPerDate = new Map();
+  results.forEach(({ dailyReturns }) => dailyReturns.forEach(({ date, return: dailyReturn, buyHoldReturn }) => {
     returnsByDate.set(date, (returnsByDate.get(date) || 0) + dailyReturn);
     returnsPerDate.set(date, (returnsPerDate.get(date) || 0) + 1);
+    if (Number.isFinite(buyHoldReturn)) {
+      benchmarkReturnsByDate.set(date, (benchmarkReturnsByDate.get(date) || 0) + buyHoldReturn);
+      benchmarkReturnsPerDate.set(date, (benchmarkReturnsPerDate.get(date) || 0) + 1);
+    }
   }));
 
   let equity = 1;
+  let buyHoldEquity = 1;
+  const equityCurve = [];
   const weekly = new Map();
   [...returnsByDate.keys()].sort().forEach((date) => {
     const dailyReturn = returnsByDate.get(date) / returnsPerDate.get(date);
     equity *= 1 + dailyReturn;
+    const benchmarkCount = benchmarkReturnsPerDate.get(date) || 0;
+    if (benchmarkCount) {
+      buyHoldEquity *= 1 + benchmarkReturnsByDate.get(date) / benchmarkCount;
+    }
+    equityCurve.push({
+      date,
+      modelReturnPct: (equity - 1) * 100,
+      buyHoldReturnPct: benchmarkCount ? (buyHoldEquity - 1) * 100 : null,
+    });
     const dateValue = new Date(`${date}T00:00:00Z`);
     const monday = new Date(dateValue);
     monday.setUTCDate(monday.getUTCDate() - ((monday.getUTCDay() + 6) % 7));
@@ -75,6 +98,8 @@ export function summarizeBacktest(results) {
   const winningTrades = allTrades.filter((trade) => trade.pnlPct > 0).length;
   return {
     totalReturnPct: (equity - 1) * 100,
+    buyHoldTotalReturnPct: (buyHoldEquity - 1) * 100,
+    equityCurve,
     tradeCount: allTrades.length,
     winRatePct: allTrades.length ? (winningTrades / allTrades.length) * 100 : 0,
     trades: allTrades,

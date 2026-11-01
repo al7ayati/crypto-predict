@@ -16,6 +16,7 @@ test("market data configuration defines supported assets and provider endpoints"
   assert.equal(new URL(MARKET_DATA_CONFIG.coinGecko.apiBaseUrl).hostname, "api.coingecko.com");
   assert.equal(MARKET_DATA_CONFIG.coinGecko.marketsPath, "/coins/markets");
   assert.ok(MARKET_DATA_CONFIG.coinGecko.minimumRequestGapMs >= 12_000);
+  assert.equal(new URL(MARKET_DATA_CONFIG.alternativeMe.fearGreedUrl).hostname, "api.alternative.me");
   assert.equal(new URL(MARKET_DATA_CONFIG.binance.apiBaseUrl).hostname, "api.binance.com");
   assert.equal(new URL(MARKET_DATA_CONFIG.binance.streamBaseUrl).protocol, "wss:");
   assert.equal(MARKET_DATA_CONFIG.binance.candleInterval, "1d");
