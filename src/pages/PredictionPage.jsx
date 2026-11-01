@@ -232,7 +232,7 @@ export default function PredictionPage({ assetData, onCreateAlert }) {
 
         <section className="model-weighting-card" aria-labelledby="model-weighting-heading">
           <div className="model-weighting-heading">
-            <div><p className="prediction-risk-kicker">Explainable calculation</p><h3 id="model-weighting-heading">Model Weighting &amp; Feature Importance</h3></div>
+            <div><p className="prediction-risk-kicker">Explainable calculation</p><h3 id="model-weighting-heading">Baseline Inputs &amp; Weights</h3></div>
             <FeatureTooltip label="Model weighting">This is a deterministic historical trend baseline, not a trained or AI model. The seven observed log-return intervals are equally weighted in the cumulative return.</FeatureTooltip>
           </div>
           <p className="model-weighting-intro">Each of the latest {prediction.baselineObservationIntervals} observed log-return intervals contributes equally to the baseline trend. The sum is divided by actual elapsed UTC days before compounding.</p>
