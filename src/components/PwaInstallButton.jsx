@@ -43,9 +43,31 @@ export default function PwaInstallButton() {
   useEffect(() => {
     if (!showInstallHelp) return undefined;
     const previousFocus = document.activeElement;
-    dialogRef.current?.focus();
+    const firstControl = dialogRef.current?.querySelector("button");
+    (firstControl || dialogRef.current)?.focus();
     const closeOnEscape = (event) => {
-      if (event.key === "Escape") setShowInstallHelp(false);
+      if (event.key === "Escape") {
+        setShowInstallHelp(false);
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusable = [...(dialogRef.current?.querySelectorAll(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      ) || [])].filter((element) => element.getClientRects().length > 0);
+      if (!focusable.length) {
+        event.preventDefault();
+        dialogRef.current?.focus();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && (document.activeElement === first || !dialogRef.current?.contains(document.activeElement))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !dialogRef.current?.contains(document.activeElement))) {
+        event.preventDefault();
+        first.focus();
+      }
     };
     window.addEventListener("keydown", closeOnEscape);
     return () => {
@@ -62,7 +84,6 @@ export default function PwaInstallButton() {
       setShowInstallHelp(true);
       return;
     }
-    if (!installPrompt) return;
     try {
       const prompt = installPrompt;
       setInstallPrompt(null);

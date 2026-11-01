@@ -38,6 +38,7 @@ test("portfolio summary equally weights same-day returns and compounds weekly re
   const expectedBuyHoldEquity = 1.1 * 0.9;
 
   assert.ok(Math.abs(summary.totalReturnPct - (expectedEquity - 1) * 100) < 1e-12);
+  assert.ok(Math.abs(summary.maxDrawdownPct - ((1.029 / 1.05 - 1) * 100)) < 1e-12);
   assert.ok(Math.abs(summary.buyHoldTotalReturnPct - (expectedBuyHoldEquity - 1) * 100) < 1e-12);
   assert.equal(summary.equityCurve.length, 2);
   assert.ok(Math.abs(summary.equityCurve.at(-1).modelReturnPct - (expectedEquity - 1) * 100) < 1e-12);
@@ -45,4 +46,18 @@ test("portfolio summary equally weights same-day returns and compounds weekly re
   assert.equal(summary.weeklyReturns.length, 1);
   assert.equal(summary.weeklyReturns[0].week, "2026-01-05");
   assert.ok(Math.abs(summary.weeklyReturns[0].returnPct - (expectedEquity - 1) * 100) < 1e-12);
+});
+
+
+test("maximum drawdown measures the largest peak-to-trough portfolio decline", () => {
+  const summary = summarizeBacktest([{
+    trades: [],
+    dailyReturns: [
+      { date: "2026-01-01", return: 0.1, buyHoldReturn: 0 },
+      { date: "2026-01-02", return: -0.2, buyHoldReturn: 0 },
+      { date: "2026-01-03", return: 0.05, buyHoldReturn: 0 },
+    ],
+  }]);
+
+  assert.ok(Math.abs(summary.maxDrawdownPct - ((0.88 / 1.1 - 1) * 100)) < 1e-12);
 });

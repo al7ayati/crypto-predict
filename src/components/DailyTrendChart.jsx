@@ -26,7 +26,7 @@ export default function DailyTrendChart({ candles, symbol }) {
     aria-label={`${symbol} Binance Spot ${symbol}/USDT daily closing prices in USDT from ${firstDate} through ${lastDate} UTC`}
   >
     <ResponsiveContainer width="100%" height="100%">
-      <LineChart data={candles} margin={{ top: 10, right: 12, bottom: 0, left: 3 }}>
+      <LineChart accessibilityLayer data={candles} margin={{ top: 10, right: 12, bottom: 0, left: 3 }}>
         <CartesianGrid stroke="#e9eef6" strokeDasharray="4 5" vertical={false} />
         <XAxis dataKey="date" tickFormatter={(date) => date.slice(5)} tickLine={false} axisLine={false} tick={{ fill: "#8290a6", fontSize: 10 }} minTickGap={20} />
         <YAxis domain={["dataMin", "dataMax"]} tickFormatter={(value) => value.toLocaleString("en-US", { maximumFractionDigits: value < 1 ? 4 : 0 })} tickLine={false} axisLine={false} width={56} tick={{ fill: "#8290a6", fontSize: 9 }} />

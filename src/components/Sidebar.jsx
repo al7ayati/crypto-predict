@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import {
   LayoutDashboard, History, FlaskConical, TrendingUp, LogOut, X
 } from "lucide-react";
@@ -13,6 +13,42 @@ const NAV_ITEMS = [
 ];
 
 export default function Sidebar({ activeNav, setActiveNav, isOpen, onClose, user, onSignOut, signOutBusy, signOutError }) {
+  const sidebarRef = useRef(null);
+  const mobileHidden = !isOpen && window.matchMedia("(max-width: 930px)").matches;
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    const previousFocus = document.activeElement;
+    const firstControl = sidebarRef.current?.querySelector("button:not([disabled])");
+    firstControl?.focus();
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        onClose();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusable = [...(sidebarRef.current?.querySelectorAll(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      ) || [])].filter((element) => element.getClientRects().length > 0);
+      if (!focusable.length) {
+        event.preventDefault();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && (document.activeElement === first || !sidebarRef.current?.contains(document.activeElement))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !sidebarRef.current?.contains(document.activeElement))) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      previousFocus?.focus?.();
+    };
+  }, [isOpen, onClose]);
   const displayName = user?.displayName || user?.email?.split("@")[0] || "User";
   const initials = displayName
     .split(/\s+/)
@@ -22,7 +58,7 @@ export default function Sidebar({ activeNav, setActiveNav, isOpen, onClose, user
     .toUpperCase();
 
   return (
-    <aside className={`sidebar${isOpen ? " is-open" : ""}`} aria-hidden={!isOpen && window.matchMedia("(max-width: 930px)").matches}>
+    <aside ref={sidebarRef} className={`sidebar${isOpen ? " is-open" : ""}`} aria-hidden={mobileHidden} inert={mobileHidden}>
       <div className="sidebar-brand">
         <BrandMark className="sidebar-brand-mark" iconSize={20} />
         <span className="sidebar-brand-text">CRYPTO<span>PREDICT</span></span>
