@@ -73,11 +73,15 @@ export function summarizeBacktest(results) {
 
   let equity = 1;
   let buyHoldEquity = 1;
+  let peakEquity = 1;
+  let maxDrawdownPct = 0;
   const equityCurve = [];
   const weekly = new Map();
   [...returnsByDate.keys()].sort().forEach((date) => {
     const dailyReturn = returnsByDate.get(date) / returnsPerDate.get(date);
     equity *= 1 + dailyReturn;
+    peakEquity = Math.max(peakEquity, equity);
+    maxDrawdownPct = Math.min(maxDrawdownPct, (equity / peakEquity - 1) * 100);
     const benchmarkCount = benchmarkReturnsPerDate.get(date) || 0;
     if (benchmarkCount) {
       buyHoldEquity *= 1 + benchmarkReturnsByDate.get(date) / benchmarkCount;
@@ -98,6 +102,7 @@ export function summarizeBacktest(results) {
   const winningTrades = allTrades.filter((trade) => trade.pnlPct > 0).length;
   return {
     totalReturnPct: (equity - 1) * 100,
+    maxDrawdownPct,
     buyHoldTotalReturnPct: (buyHoldEquity - 1) * 100,
     equityCurve,
     tradeCount: allTrades.length,
