@@ -1,11 +1,13 @@
 const CACHE_PREFIX = "crypto-predict-shell-";
-const CACHE_NAME = `${CACHE_PREFIX}v1`;
+const CACHE_NAME = `${CACHE_PREFIX}v2`;
 const APP_SHELL = [
   "/",
   "/manifest.webmanifest",
   "/icons/icon-192.png",
   "/icons/icon-512.png",
   "/icons/icon-maskable-512.png",
+  "/provider-logos/binance.svg",
+  "/provider-logos/coingecko.png",
 ];
 
 self.addEventListener("install", (event) => {
@@ -48,7 +50,7 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  if (url.pathname.startsWith("/assets/") || url.pathname.startsWith("/icons/") || url.pathname === "/manifest.webmanifest") {
+  if (url.pathname.startsWith("/assets/") || url.pathname.startsWith("/icons/") || url.pathname.startsWith("/provider-logos/") || url.pathname === "/manifest.webmanifest") {
     event.respondWith(
       caches.match(request).then((cached) => {
         if (cached) return cached;

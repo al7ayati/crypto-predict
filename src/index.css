@@ -233,10 +233,8 @@ button:disabled { opacity: .65; cursor: not-allowed; }
 .live-data-sources a { display: inline-flex; min-height: 24px; align-items: center; gap: 5px; padding: 2px 7px; border: 1px solid rgba(185,204,241,.15); border-radius: 7px; background: rgba(255,255,255,.055); color: #dce7ff; font-size: 9px; font-weight: 650; line-height: 1; text-decoration: none; transition: background .16s ease, border-color .16s ease, color .16s ease; }
 .live-data-sources a:hover { border-color: rgba(185,204,241,.34); background: rgba(255,255,255,.12); color: #fff; }
 .live-data-sources a:focus-visible { outline: 2px solid #a9c1ff; outline-offset: 2px; }
-.live-data-source-mark { width: 14px; height: 14px; flex: 0 0 auto; }
-.live-data-source-mark-binance { fill: #f0b90b; }
-.live-data-source-mark-coingecko { fill: #8dc63f; }
-.live-data-source-mark-coingecko path { fill: #102247; }
+.live-data-source-mark { display: block; width: 16px; height: 16px; flex: 0 0 auto; object-fit: contain; }
+.live-data-source-mark-coingecko { border-radius: 50%; background: #fff; }
 .live-data-status.is-live .live-data-copy strong > i { animation: live-pulse 1.8s ease-out infinite; }
 .live-data-status.is-pending .live-data-copy strong > i { background: #f3b84b; box-shadow: 0 0 0 3px rgba(243,184,75,.12); }
 .live-data-status.is-warning .live-data-copy strong > i { background: #f07878; box-shadow: 0 0 0 3px rgba(240,120,120,.12); }
@@ -302,7 +300,11 @@ button:disabled { opacity: .65; cursor: not-allowed; }
 .feature-tooltip-trigger { display: inline-grid; width: 20px; height: 20px; place-items: center; border: 0; border-radius: 50%; background: transparent; color: #7e91b5; cursor: help; }
 .feature-tooltip-trigger:hover, .feature-tooltip-trigger:focus-visible { background: #edf3ff; color: #3764cd; }
 .feature-tooltip { position: absolute; z-index: 30; right: 0; bottom: calc(100% + 8px); width: min(250px, 72vw); padding: 9px 10px; border: 1px solid rgba(142,166,209,.25); border-radius: 9px; background: #102247; color: #e7efff; box-shadow: 0 10px 25px rgba(9,22,47,.2); font-size: 9px; font-weight: 500; line-height: 1.55; opacity: 0; pointer-events: none; transform: translateY(3px); transition: opacity .12s ease, transform .12s ease; }
-.feature-tooltip-wrap:hover .feature-tooltip, .feature-tooltip-trigger:focus-visible + .feature-tooltip { opacity: 1; transform: translateY(0); }
+.feature-tooltip-wrap:hover .feature-tooltip, .feature-tooltip-trigger:focus-visible + .feature-tooltip, .feature-tooltip.is-open { opacity: 1; pointer-events: auto; transform: translateY(0); }
+@media (max-width: 640px) {
+  .feature-tooltip { position: fixed; right: auto; bottom: auto; width: min(250px, calc(100vw - 24px)); max-height: min(45dvh, 240px); overflow-y: auto; overscroll-behavior: contain; }
+  .feature-tooltip-wrap:hover .feature-tooltip, .feature-tooltip-trigger:focus-visible + .feature-tooltip { opacity: 0; pointer-events: none; }
+}
 .context-only-features { padding-top: 12px; border-top: 1px solid #e9eef6; margin-top: 14px; }
 .context-only-features h4 { margin: 0 0 7px; color: #7b889b; font-size: 8px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .context-only-features p { display: flex; align-items: flex-start; gap: 5px; margin: 6px 0 0; color: #8692a4; font-size: 8px; line-height: 1.6; }
@@ -673,8 +675,8 @@ body { background: #f3f5f1; }
 .mini-sparkline.is-negative { color: #dc2626; }
 .mini-sparkline-popover { position: absolute; z-index: 3; top: -4px; padding: 4px 6px; transform: translate(-50%, -100%); border: 1px solid #e3eaf5; border-radius: 6px; background: #fff; box-shadow: 0 3px 10px rgba(20,35,60,.12); color: #455570; font-size: 9px; font-weight: 600; white-space: nowrap; pointer-events: none; }
 .mini-sparkline-empty { color: #a1aabc; }
-.market-overview-table tbody tr.price-flash-up > td { animation: market-price-flash-up 400ms ease-out; }
-.market-overview-table tbody tr.price-flash-down > td { animation: market-price-flash-down 400ms ease-out; }
+.market-overview-table tbody tr.price-flash-up > td:not(:first-child) { animation: market-price-flash-up 400ms ease-out; }
+.market-overview-table tbody tr.price-flash-down > td:not(:first-child) { animation: market-price-flash-down 400ms ease-out; }
 @keyframes market-price-flash-up {
   0%, 100% { background-color: transparent; }
   35% { background-color: rgba(34, 197, 94, .12); }

@@ -5,6 +5,7 @@ export { MARKET_ASSETS };
 export const COINGECKO_ATTRIBUTION_URL = MARKET_DATA_CONFIG.coinGecko.attributionUrl;
 export const BINANCE_MARKET_DATA_URL = MARKET_DATA_CONFIG.binance.marketDataUrl;
 export const BINANCE_KLINES_DOCUMENTATION_URL = MARKET_DATA_CONFIG.binance.klinesDocumentationUrl;
+export const BINANCE_STREAM_DOCUMENTATION_URL = MARKET_DATA_CONFIG.binance.streamDocumentationUrl;
 let requestQueue = Promise.resolve();
 let lastRequestStartedAt = 0;
 

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Activity, RefreshCw } from "lucide-react";
-import { BINANCE_MARKET_DATA_URL, COINGECKO_ATTRIBUTION_URL } from "../services/marketData";
+import { BINANCE_STREAM_DOCUMENTATION_URL, COINGECKO_ATTRIBUTION_URL } from "../services/marketData";
 
 function formatAge(timestamp, now) {
   if (!timestamp) return "No successful fetch yet";
@@ -57,17 +57,12 @@ export default function LiveDataStatus({
     <span className="live-data-copy">
       <strong><i aria-hidden="true" />{statusText}</strong>
       <span className="live-data-sources" aria-label="Market data sources">
-        <a href={BINANCE_MARKET_DATA_URL} target="_blank" rel="noreferrer" aria-label="Binance Spot market data documentation, opens in a new tab">
-          <svg className="live-data-source-mark live-data-source-mark-binance" viewBox="0 0 20 20" aria-hidden="true">
-            <path d="m10 1.5 3.1 3.1L10 7.7 6.9 4.6 10 1.5Zm-5.4 5.4 3.1 3.1-3.1 3.1-3.1-3.1 3.1-3.1Zm10.8 0 3.1 3.1-3.1 3.1-3.1-3.1 3.1-3.1ZM10 12.3l3.1 3.1-3.1 3.1-3.1-3.1 3.1-3.1Zm0-5.4 3.1 3.1-3.1 3.1-3.1-3.1L10 6.9Z" />
-          </svg>
-          <span>Binance</span>
+        <a href={BINANCE_STREAM_DOCUMENTATION_URL} target="_blank" rel="noreferrer" aria-label="Binance Spot WebSocket market stream documentation, opens in a new tab">
+          <img className="live-data-source-mark live-data-source-mark-binance" src="/provider-logos/binance.svg" alt="" aria-hidden="true" />
+          <span>Binance Spot</span>
         </a>
         <a href={COINGECKO_ATTRIBUTION_URL} target="_blank" rel="noreferrer" aria-label="CoinGecko market data attribution, opens in a new tab">
-          <svg className="live-data-source-mark live-data-source-mark-coingecko" viewBox="0 0 20 20" aria-hidden="true">
-            <circle cx="10" cy="10" r="9" />
-            <path d="M6.2 11.1c0-2.2 1.5-3.9 3.8-3.9 1.2 0 2.2.4 2.9 1.2l-1.6 1.5c-.3-.4-.7-.6-1.2-.6-1 0-1.7.7-1.7 1.7s.7 1.7 1.7 1.7c.5 0 .9-.2 1.2-.6l1.6 1.5c-.7.8-1.7 1.2-2.9 1.2-2.3 0-3.8-1.6-3.8-3.7Z" />
-          </svg>
+          <img className="live-data-source-mark live-data-source-mark-coingecko" src="/provider-logos/coingecko.png" alt="" aria-hidden="true" />
           <span>CoinGecko</span>
         </a>
       </span>

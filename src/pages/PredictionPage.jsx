@@ -1,5 +1,6 @@
-import React, { useEffect, useId, useMemo, useState } from "react";
+import React, { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { createPortal } from "react-dom";
 import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { AlertTriangle, BellPlus, Info } from "lucide-react";
 import { ANALYTICS_CONFIG } from "../config/analytics.js";
@@ -51,12 +52,83 @@ function getHistoryRange() {
 
 function FeatureTooltip({ label, children }) {
   const tooltipId = useId();
+  const triggerRef = useRef(null);
+  const tooltipRef = useRef(null);
   const [isOpen, setIsOpen] = useState(false);
+  const [isMobileViewport, setIsMobileViewport] = useState(() => window.matchMedia("(max-width: 640px)").matches);
+  const [tooltipPosition, setTooltipPosition] = useState(null);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(max-width: 640px)");
+    const updateViewport = (event) => setIsMobileViewport(event.matches);
+    setIsMobileViewport(mediaQuery.matches);
+    mediaQuery.addEventListener("change", updateViewport);
+    return () => mediaQuery.removeEventListener("change", updateViewport);
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!isOpen || !isMobileViewport) return undefined;
+    const placeTooltip = () => {
+      const trigger = triggerRef.current?.getBoundingClientRect();
+      const tooltip = tooltipRef.current?.getBoundingClientRect();
+      if (!trigger || !tooltip) return;
+      const margin = 12;
+      const left = Math.max(margin, Math.min(
+        trigger.right - tooltip.width,
+        window.innerWidth - tooltip.width - margin
+      ));
+      const above = trigger.top - tooltip.height - 8;
+      const top = above >= margin
+        ? above
+        : Math.min(trigger.bottom + 8, window.innerHeight - tooltip.height - margin);
+      const nextPosition = { left: Math.round(left), top: Math.round(Math.max(margin, top)) };
+      setTooltipPosition((current) => current?.left === nextPosition.left && current?.top === nextPosition.top
+        ? current
+        : nextPosition);
+    };
+    placeTooltip();
+    window.addEventListener("resize", placeTooltip);
+    window.addEventListener("scroll", placeTooltip, true);
+    return () => {
+      window.removeEventListener("resize", placeTooltip);
+      window.removeEventListener("scroll", placeTooltip, true);
+    };
+  }, [isOpen, isMobileViewport]);
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    const closeOnOutsidePress = (event) => {
+      if (triggerRef.current?.contains(event.target) || tooltipRef.current?.contains(event.target)) return;
+      setIsOpen(false);
+    };
+    const closeOnEscape = (event) => {
+      if (event.key !== "Escape") return;
+      setIsOpen(false);
+      triggerRef.current?.focus();
+    };
+    document.addEventListener("pointerdown", closeOnOutsidePress);
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsidePress);
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [isOpen]);
+
+  const tooltip = <span
+    className={`feature-tooltip${isOpen ? " is-open" : ""}`}
+    id={tooltipId}
+    role="tooltip"
+    ref={tooltipRef}
+    style={isMobileViewport && isOpen && tooltipPosition ? tooltipPosition : undefined}
+  >
+    {children}
+  </span>;
+
   return <span className="feature-tooltip-wrap">
-    <button type="button" className="feature-tooltip-trigger" aria-label={`About ${label}`} aria-describedby={tooltipId} aria-expanded={isOpen} onClick={() => setIsOpen((open) => !open)}>
+    <button ref={triggerRef} type="button" className="feature-tooltip-trigger" aria-label={`About ${label}`} aria-describedby={tooltipId} aria-expanded={isOpen} onClick={() => setIsOpen((open) => !open)}>
       <Info size={13} aria-hidden="true" />
     </button>
-    <span className={`feature-tooltip${isOpen ? " is-open" : ""}`} id={tooltipId} role="tooltip">{children}</span>
+    {isMobileViewport && isOpen ? createPortal(tooltip, document.body) : tooltip}
   </span>;
 }
 

@@ -22,4 +22,5 @@ test("market data configuration defines supported assets and provider endpoints"
   assert.equal(MARKET_DATA_CONFIG.binance.candleInterval, "1d");
   assert.equal(MARKET_DATA_CONFIG.binance.candlesPerRequest, 1_000);
   assert.match(MARKET_DATA_CONFIG.binance.klinesDocumentationUrl, /developers\.binance\.com/);
+  assert.match(MARKET_DATA_CONFIG.binance.streamDocumentationUrl, /developers\.binance\.com\/docs\/binance-spot-api-docs\/web-socket-streams/);
 });
