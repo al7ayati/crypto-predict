@@ -1,4 +1,5 @@
-import React, { lazy, Suspense, useEffect, useRef, useState } from "react";
+import React, { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import {
   ArrowDownRight,
@@ -23,6 +24,7 @@ import {
 } from "../services/marketData";
 import LiveDataStatus from "../components/LiveDataStatus";
 import { formatUtcTimestamp } from "../utils/formatting";
+import { getSparklineTooltipPosition } from "../utils/sparkline.js";
 
 const STAT_ICONS = [Coins, BarChart3, Gauge, RefreshCw];
 const DailyTrendChart = lazy(() => import("../components/DailyTrendChart.jsx"));
@@ -61,50 +63,150 @@ function formatPercent(value) {
 }
 
 function MiniTrendSparkline({ candles, symbol }) {
-  const [hoveredIndex, setHoveredIndex] = useState(null);
+  const [selectedIndex, setSelectedIndex] = useState(null);
+  const [tooltipPosition, setTooltipPosition] = useState(null);
+  const chartRef = useRef(null);
+  const tooltipRef = useRef(null);
+  const points = useMemo(() => {
+    if (candles.length < 2) return [];
+    const min = Math.min(...candles.map(({ close }) => close));
+    const max = Math.max(...candles.map(({ close }) => close));
+    return candles.map((candle, index) => ({
+      ...candle,
+      x: 4 + (index / (candles.length - 1)) * 92,
+      y: max === min ? 16 : 4 + ((max - candle.close) / (max - min)) * 24,
+    }));
+  }, [candles]);
+  const selectedPoint = selectedIndex === null ? null : points[selectedIndex];
+  const formatTooltip = (point) => `${point.date} · ${formatUsdtPrice(point.close)}`;
+
+  useLayoutEffect(() => {
+    if (!selectedPoint) {
+      setTooltipPosition(null);
+      return undefined;
+    }
+
+    const updatePosition = () => {
+      const chart = chartRef.current?.getBoundingClientRect();
+      const tooltip = tooltipRef.current?.getBoundingClientRect();
+      if (!chart || !tooltip) return;
+      const position = getSparklineTooltipPosition(
+        {
+          x: chart.left + (selectedPoint.x / 100) * chart.width,
+          y: chart.top + (selectedPoint.y / 32) * chart.height,
+        },
+        { width: tooltip.width, height: tooltip.height },
+        {
+          width: window.visualViewport?.width ?? window.innerWidth,
+          height: window.visualViewport?.height ?? window.innerHeight,
+        }
+      );
+      setTooltipPosition((current) => current?.left === position.left
+        && current?.top === position.top
+        && current?.width === position.width
+        ? current
+        : position);
+    };
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    window.visualViewport?.addEventListener("resize", updatePosition);
+    window.visualViewport?.addEventListener("scroll", updatePosition);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+      window.visualViewport?.removeEventListener("resize", updatePosition);
+      window.visualViewport?.removeEventListener("scroll", updatePosition);
+    };
+  }, [selectedPoint]);
+
+  useEffect(() => {
+    if (selectedIndex === null) return undefined;
+    const closeOnOutsidePress = (event) => {
+      if (chartRef.current?.contains(event.target) || tooltipRef.current?.contains(event.target)) return;
+      setSelectedIndex(null);
+    };
+    document.addEventListener("pointerdown", closeOnOutsidePress);
+    return () => document.removeEventListener("pointerdown", closeOnOutsidePress);
+  }, [selectedIndex]);
+
+  const selectPointAt = (clientX) => {
+    const bounds = chartRef.current?.getBoundingClientRect();
+    if (!bounds) return;
+    const position = Math.max(0, Math.min(1, (clientX - bounds.left) / bounds.width));
+    setSelectedIndex(Math.round(position * (points.length - 1)));
+  };
+
   if (candles.length < 2) return <span className="mini-sparkline-empty">—</span>;
 
-  const min = Math.min(...candles.map(({ close }) => close));
-  const max = Math.max(...candles.map(({ close }) => close));
-  const points = candles.map((candle, index) => ({
-    ...candle,
-    x: 4 + (index / (candles.length - 1)) * 92,
-    y: max === min ? 16 : 4 + ((max - candle.close) / (max - min)) * 24,
-  }));
-  const hoveredPoint = hoveredIndex === null ? null : points[hoveredIndex];
-
-  return <span className="mini-sparkline-wrap">
-    {hoveredPoint && <span className="mini-sparkline-popover" style={{ left: `${Math.min(86, Math.max(14, hoveredPoint.x))}%` }}>
-      {hoveredPoint.date} · {formatUsdtPrice(hoveredPoint.close)}
-    </span>}
-    <svg
-      className={`mini-sparkline ${candles.at(-1).close >= candles[0].close ? "is-positive" : "is-negative"}`}
-      viewBox="0 0 100 32"
-      role="img"
-      aria-label={`${symbol} seven-day close price sparkline`}
-      tabIndex={0}
-      onPointerMove={(event) => {
-        const bounds = event.currentTarget.getBoundingClientRect();
-        const position = Math.max(0, Math.min(1, (event.clientX - bounds.left) / bounds.width));
-        setHoveredIndex(Math.round(position * (points.length - 1)));
-      }}
-      onPointerLeave={() => setHoveredIndex(null)}
-      onFocus={() => setHoveredIndex(points.length - 1)}
-      onBlur={() => setHoveredIndex(null)}
-      onKeyDown={(event) => {
-        if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
-        event.preventDefault();
-        setHoveredIndex((index) => {
-          const currentIndex = index ?? points.length - 1;
-          const delta = event.key === "ArrowRight" ? 1 : -1;
-          return Math.max(0, Math.min(points.length - 1, currentIndex + delta));
-        });
-      }}
+  return <>
+    <span className="mini-sparkline-wrap">
+      <svg
+        ref={chartRef}
+        className={`mini-sparkline ${candles.at(-1).close >= candles[0].close ? "is-positive" : "is-negative"}`}
+        viewBox="0 0 100 32"
+        role="slider"
+        aria-label={`${symbol} seven-day daily close history`}
+        aria-orientation="horizontal"
+        aria-valuemin={0}
+        aria-valuemax={points.length - 1}
+        aria-valuenow={selectedIndex ?? points.length - 1}
+        aria-valuetext={formatTooltip(selectedPoint ?? points.at(-1))}
+        aria-describedby={`${symbol.toLowerCase()}-sparkline-help`}
+        tabIndex={0}
+        onPointerDown={(event) => {
+          if (event.pointerType === "touch") event.currentTarget.focus();
+          selectPointAt(event.clientX);
+        }}
+        onPointerMove={(event) => {
+          if (event.pointerType === "mouse" || event.buttons > 0) selectPointAt(event.clientX);
+        }}
+        onPointerLeave={(event) => {
+          if (event.pointerType !== "touch") setSelectedIndex(null);
+        }}
+        onFocus={() => setSelectedIndex((index) => index ?? points.length - 1)}
+        onBlur={() => setSelectedIndex(null)}
+        onKeyDown={(event) => {
+          if (!["ArrowLeft", "ArrowRight", "Home", "End", "Escape"].includes(event.key)) return;
+          event.preventDefault();
+          if (event.key === "Escape") {
+            setSelectedIndex(null);
+            return;
+          }
+          if (event.key === "Home") {
+            setSelectedIndex(0);
+            return;
+          }
+          if (event.key === "End") {
+            setSelectedIndex(points.length - 1);
+            return;
+          }
+          setSelectedIndex((index) => {
+            const currentIndex = index ?? points.length - 1;
+            const delta = event.key === "ArrowRight" ? 1 : -1;
+            return Math.max(0, Math.min(points.length - 1, currentIndex + delta));
+          });
+        }}
+      >
+        <polyline points={points.map(({ x, y }) => `${x},${y}`).join(" ")} />
+        {selectedPoint && <circle cx={selectedPoint.x} cy={selectedPoint.y} r="3" />}
+      </svg>
+      <span className="sr-only" id={`${symbol.toLowerCase()}-sparkline-help`}>Tap or drag across the chart to inspect each daily close. Use the left and right arrow keys to move between days, Home for the first day, and End for the latest.</span>
+    </span>
+    {selectedPoint && createPortal(<span
+      className="mini-sparkline-popover"
+      role="status"
+      ref={tooltipRef}
+      style={tooltipPosition ? {
+        left: `${tooltipPosition.left}px`,
+        top: `${tooltipPosition.top}px`,
+        width: `${tooltipPosition.width}px`,
+      } : { visibility: "hidden" }}
     >
-      <polyline points={points.map(({ x, y }) => `${x},${y}`).join(" ")} />
-      {hoveredPoint && <circle cx={hoveredPoint.x} cy={hoveredPoint.y} r="3" />}
-    </svg>
-  </span>;
+      {formatTooltip(selectedPoint)}
+    </span>, document.body)}
+  </>;
 }
 
 function StatCard({ stat, index }) {
