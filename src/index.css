@@ -229,6 +229,14 @@ button:disabled { opacity: .65; cursor: not-allowed; }
 .live-data-copy { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 3px; }
 .live-data-copy strong { display: flex; align-items: center; gap: 7px; color: #f3f6ff; font-size: 10px; font-weight: 700; }
 .live-data-copy strong > i { position: relative; width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; background: #18c894; box-shadow: 0 0 0 3px rgba(24,200,148,.13); }
+.live-data-sources { display: flex; flex-wrap: wrap; gap: 5px; }
+.live-data-sources a { display: inline-flex; min-height: 24px; align-items: center; gap: 5px; padding: 2px 7px; border: 1px solid rgba(185,204,241,.15); border-radius: 7px; background: rgba(255,255,255,.055); color: #dce7ff; font-size: 9px; font-weight: 650; line-height: 1; text-decoration: none; transition: background .16s ease, border-color .16s ease, color .16s ease; }
+.live-data-sources a:hover { border-color: rgba(185,204,241,.34); background: rgba(255,255,255,.12); color: #fff; }
+.live-data-sources a:focus-visible { outline: 2px solid #a9c1ff; outline-offset: 2px; }
+.live-data-source-mark { width: 14px; height: 14px; flex: 0 0 auto; }
+.live-data-source-mark-binance { fill: #f0b90b; }
+.live-data-source-mark-coingecko { fill: #8dc63f; }
+.live-data-source-mark-coingecko path { fill: #102247; }
 .live-data-status.is-live .live-data-copy strong > i { animation: live-pulse 1.8s ease-out infinite; }
 .live-data-status.is-pending .live-data-copy strong > i { background: #f3b84b; box-shadow: 0 0 0 3px rgba(243,184,75,.12); }
 .live-data-status.is-warning .live-data-copy strong > i { background: #f07878; box-shadow: 0 0 0 3px rgba(240,120,120,.12); }
